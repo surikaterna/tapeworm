@@ -1,1 +1,1 @@
-# eventstore
+# FFWD - Simple Eventstore for Node
