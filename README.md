@@ -1,1 +1,1 @@
-# FFWD - Simple Eventstore for Node
+# REC - Simple Eventstore for Node
