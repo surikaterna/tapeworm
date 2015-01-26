@@ -100,4 +100,20 @@ describe('inmemory_persistence', function() {
 			});
 		});
 	});
+	describe('#partition', function() {
+		it('getting the same partition twice should return same instance', function(done) {
+			var store = new Store();
+			Promise.join(store.openPartition('1'), store.openPartition('1'), function(p1,p2) {
+				p1.should.equal(p2);
+				done();
+			});
+		});
+		it('not indicating partition name should give master partition', function(done) {
+			var store = new Store();
+			Promise.join(store.openPartition(), store.openPartition('master'), function(p1,p2) {
+				p1.should.equal(p2);
+				done();
+			});
+		});		
+	});
 });

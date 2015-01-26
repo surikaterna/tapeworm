@@ -1,5 +1,5 @@
 {
-  "name": "eventstore",
+  "name": "es-rec",
   "version": "0.0.0",
   "description": "",
   "main": "index.js",
@@ -8,14 +8,14 @@
   },
   "scripts": {
     "test": "mocha test --recursive",
-    "coverage": "istanbul cover node_modules/mocha/bin/_mocha test --recursive -- -u exports -R spec",
+    "coverage": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R spec",
     "coverage-start": "istanbul cover node_modules/mocha/bin/_mocha test --recursive -- -u exports -R spec && start coverage/lcov-report/index.html",
     "jshint": "jshint ./lib",
     "jscs": "jscs -p google ./lib"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/spralle/eventstore"
+    "url": "https://github.com/spralle/rec"
   },
   "keywords": [
     "event sourcing",
@@ -23,7 +23,7 @@
     "store"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "istanbul": "^0.3.2",
     "jshint": "^2.5.10",
