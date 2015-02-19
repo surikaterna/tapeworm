@@ -1,5 +1,5 @@
 {
-  "name": "es-rec",
+  "name": "tapeworm",
   "version": "0.0.0",
   "description": "",
   "main": "index.js",
@@ -15,7 +15,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/spralle/rec"
+    "url": "https://github.com/surikaterna/tapeworm"
   },
   "keywords": [
     "event sourcing",
