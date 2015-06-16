@@ -93,6 +93,29 @@ describe('event_stream', function() {
 			}).catch(function(err) {
 				done(err);
 			});
-		});		
+		});	
+		it('two commits gets increasing commit sequence', function(done) {
+			var es = new EventStore();
+			var stream;
+			es.openPartition('location').call('openStream', '1').then(function(stream1)
+			{
+				stream = stream1;
+				stream.append({event:'123'});
+				stream.append({event:'999'});
+				return stream.commit(uuid());
+			})
+			.then(function() {
+				stream.append({event:'666'});
+				stream.append({event:'777'});
+				return stream.commit(uuid());
+			})
+			.then(function() {
+					stream.getCommittedEvents().length.should.equal(4);
+					stream._commitSequence.should.equal(1);
+					done();
+			}).catch(function(err) {
+				done(err);
+			});
+		});	
 	});
 });
