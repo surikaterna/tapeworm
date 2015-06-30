@@ -21,7 +21,7 @@ describe('Partition', function() {
 			var es = new EventStore();
 			es.openPartition('location').then(function(partition) {
 				return partition.append([new Commit('1', 'location', '1', 0, []), new Commit('2', 'location', '1', 1, [])]).then(function(c) {
-					c[0].events.length.should.equal(0);
+					c.length.should.equal(2);
 					done();
 				});
 			}).catch(function(err) {
