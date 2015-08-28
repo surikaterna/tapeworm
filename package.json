@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "mocha test --recursive",
-    "test.ci": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R tap",
+    "test.ci": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R tap >> tape.tap && istanbul report clover",
     "coverage": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R spec",
     "coverage-start": "istanbul cover node_modules/mocha/bin/_mocha test --recursive -- -u exports -R spec && start coverage/lcov-report/index.html",
     "lint.ci": "eslint -f checkstyle ."
@@ -35,7 +35,6 @@
   },
   "dependencies": {
     "bluebird": "^2.5.2",
-    "eslint-config-airbnb": "0.0.8",
     "lodash": "^2.4.1",
     "node-uuid": "^1.4.2"
   }
