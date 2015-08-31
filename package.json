@@ -12,7 +12,7 @@
     "coverage": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R spec",
     "coverage-start": "istanbul cover node_modules/mocha/bin/_mocha test --recursive -- -u exports -R spec && start coverage/lcov-report/index.html",
     "lint": "eslint lib test",
-    "lint.ci": "eslint -f checkstyle lib test > checkstyle-result.xml"
+    "lint.ci": "eslint -f checkstyle lib test > checkstyle-result.xml || echo"
   },
   "repository": {
     "type": "git",
