@@ -11,8 +11,8 @@
     "test.ci": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R tap >> tape.tap && istanbul report clover",
     "coverage": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R spec",
     "coverage-start": "istanbul cover node_modules/mocha/bin/_mocha test --recursive -- -u exports -R spec && start coverage/lcov-report/index.html",
-    "lint": "eslint lib test",
-    "lint.ci": "eslint -f checkstyle lib test > checkstyle-result.xml || echo"
+    "lint": "eslint --env node --env mocha lib test",
+    "lint.ci": "eslint --env node --env mocha -f checkstyle lib test > checkstyle-result.xml || echo"
   },
   "repository": {
     "type": "git",
