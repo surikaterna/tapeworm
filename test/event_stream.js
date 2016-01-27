@@ -117,5 +117,56 @@ describe('event_stream', function() {
 				done(err);
 			});
 		});	
+        it('committed events should have increasing version', function(done) {
+			var es = new EventStore();
+			var stream;
+			es.openPartition('location').call('openStream', '1').then(function(stream1)
+			{
+				stream = stream1;
+				stream.append({event:'123'});
+				stream.append({event:'999'});
+				return stream.commit(uuid());
+			})
+			.then(function() {
+				stream.append({event:'666'});
+				stream.append({event:'777'});
+				return stream.commit(uuid());
+			})
+			.then(function() {
+					stream.getCommittedEvents()[3].version.should.equal(3);
+					done();
+			}).catch(function(err) {
+				done(err);
+			});
+		});
+        it.only('published events should have increasing version', function(done) {
+            var commitCount=0;
+            
+			var es = new EventStore(null, function(commit) {
+                commit.events[0].should.have.property('version');
+                console.log(commit.events);
+                if(++commitCount==2) {
+                    done();
+                }
+            });
+			var stream;
+			es.openPartition('location').call('openStream', '1').then(function(stream1)
+			{
+				stream = stream1;
+				stream.append({event:'123'});
+				stream.append({event:'999'});
+				return stream.commit(uuid());
+			})
+			.then(function() {
+				stream.append({event:'666'});
+				stream.append({event:'777'});
+				return stream.commit(uuid());
+			})
+			.then(function() {
+					stream.getCommittedEvents()[1].version.should.equal(1);
+			}).catch(function(err) {
+				done(err);
+			});
+		});
 	});
 });
