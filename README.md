@@ -1,2 +1,4 @@
 [![Build Status](https://travis-ci.org/spralle/rec.svg?branch=master)](https://travis-ci.org/spralle/rec)
-# REC - Simple Eventstore for Node
+# Tapeworm - Tape Write Once Read Many
+
+Event sourcing for Node and Browserify
