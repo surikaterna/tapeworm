@@ -63,8 +63,8 @@ describe('inmemory_persistence', function() {
 			});
 		});
 	});
-	describe('#concurrency', function() {
-		it('same commit sequence twice should throw', function(done) {
+	describe.only('#concurrency', function() {
+		it('should throw because the same commit sequence twice was used and no merge logic is available', function(done) {
 			var store = new Store();
 			store.openPartition('1').then(function(partition) {
 				var events = [new Event(uuid(), 'type1',{test:11})];
@@ -75,6 +75,23 @@ describe('inmemory_persistence', function() {
 				});
 			}).catch(PersistenceConcurrencyError, function(err) {
 				done();
+			}).catch(function(err) {
+				console.log('err' + err);
+				done(err);
+			});
+		});
+		it('should not throw even though the same commit sequence twice was used since merge logic is available and returns true', function(done) {
+			var store = new Store();
+			store.openPartition('1').then(function(partition) {
+				var eventStream1 = [new Event(uuid(), 'exampleAggregate.exampleEvent.event',{ orderLineId: 11 })];
+				var eventStream2 = [new Event(uuid(), 'exampleAggregate.exampleEvent.event',{ orderLineId: 22 })];
+				var commit = new Commit(uuid(), 'master', '1', 0, eventStream1);
+				var commit2 = new Commit(uuid(), 'master', '1', 0, eventStream2);
+				return Promise.join(partition.append(commit), partition.append(commit2), function() {
+					done();
+				});
+			}).catch(PersistenceConcurrencyError, function(err) {
+				throw new Error("Should not have thrown concurrency error")
 			}).catch(function(err) {
 				console.log('err' + err);
 				done(err);
