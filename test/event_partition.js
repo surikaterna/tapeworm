@@ -111,9 +111,9 @@ describe('Partition', function() {
         })
         .then(function () {
           es.openPartition('location').then(function (part) {
-            part.storeSnapshot(streamId, { test: 'snapshot' }, 1);
-            part.queryStreamWithSnapshot(streamId, function (err, res) {
-              res.snapshot.version.should.eql(1);
+            part.storeSnapshot(streamId, { test: 'snapshot' }, 2);
+            part.queryStreamWithSnapshot(streamId).then(function (res) {
+              res.snapshot.version.should.eql(2);
               res.commits.length.should.eql(1);
               res.commits[0].events.length.should.eql(2);
               res.commits[0].events[0].version.should.eql(2);
@@ -135,9 +135,9 @@ describe('Partition', function() {
         })
         .then(function () {
           es.openPartition('location').then(function (part) {
-            part.storeSnapshot(streamId, { test: 'snapshot' }, 1);
+            part.storeSnapshot(streamId, { test: 'snapshot' }, 2);
             part.queryStreamWithSnapshot(streamId, function (err, res) {
-              res.snapshot.version.should.eql(1);
+              res.snapshot.version.should.eql(2);
               res.commits.length.should.eql(0);
               done();
             })
