@@ -1,5 +1,6 @@
 var should = require('should');
 var Promise = require('bluebird');
+var uuid = require('node-uuid').v4;
 
 var EventStore = require('..');
 var Commit = EventStore.Commit;
@@ -59,7 +60,7 @@ describe('Partition', function() {
 			}).catch(function(err) {
 				done(err);
 			});
-		});	
+		});
 	});
 	describe('#_applyCommitHeader', function() {
 		it('should add to commit ', function(done) {
@@ -83,12 +84,68 @@ describe('Partition', function() {
 				return partition.append([commit, new Commit('2', 'location', '1', 1, [])]).then(function(c) {
 					return partition._applyCommitHeader("ID MISSING", {authorative:true}).then(function(commit) {
 						done(new Error("Unreachable code"));
-					
+
 					});
 				});
 			}).catch(function(err) {
 				done();
 			});
-		});	
+		});
 	});
+  describe('#queryStreamWithSnapshot', function () {
+    it('queryStreamWithSnapshot should return snapshot and missing commits', function (done) {
+      var es = new EventStore();
+      var streamId = '1';
+      var stream;
+      es.openPartition('location').call('openStream', streamId)
+        .then(function (stream1) {
+          stream = stream1;
+          stream.append({ event: '123' });
+          stream.append({ event: '999' });
+          return stream.commit(uuid());
+        })
+        .then(function () {
+          stream.append({ event: '666' });
+          stream.append({ event: '777' });
+          return stream.commit(uuid());
+        })
+        .then(function () {
+          es.openPartition('location').then(function (part) {
+            part.storeSnapshot(streamId, { test: 'snapshot' }, 1);
+            part.queryStreamWithSnapshot(streamId, function (err, res) {
+              res.snapshot.version.should.eql(1);
+              res.commits.length.should.eql(1);
+              res.commits[0].events.length.should.eql(2);
+              res.commits[0].events[0].version.should.eql(2);
+              done();
+            })
+          })
+        }).catch(function (err) {
+        done(err);
+      });
+    });
+    it('queryStreamWithSnapshot should return snapshot and no commit if up to date', function (done) {
+      var es = new EventStore();
+      var streamId = '1';
+      es.openPartition('location').call('openStream', streamId)
+        .then(function (stream) {
+          stream.append({ event: '123' });
+          stream.append({ event: '999' });
+          return stream.commit(uuid());
+        })
+        .then(function () {
+          es.openPartition('location').then(function (part) {
+            part.storeSnapshot(streamId, { test: 'snapshot' }, 1);
+            part.queryStreamWithSnapshot(streamId, function (err, res) {
+              res.snapshot.version.should.eql(1);
+              res.commits.length.should.eql(0);
+              done();
+            })
+          })
+        }).catch(function (err) {
+        done(err);
+      });
+    });
+  });
+
 });
