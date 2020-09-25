@@ -152,10 +152,36 @@ describe('event_stream', function () {
         })
         .then(function () {
           stream.getCommittedEvents()[3].version.should.equal(3);
+          stream._version.should.equal(4);
           done();
         }).catch(function (err) {
           done(err);
         });
+    });
+    it('committed events should have increasing version (writeOnly)', function (done) {
+      var es = new EventStore();
+      var stream;
+      es.openPartition('location').then(function (partition) {
+        partition.openStream('1', true)
+          .then(function (stream1) {
+            stream = stream1;
+            stream.append({ event: '123' });
+            stream.append({ event: '999' });
+            return stream.commit(uuid());
+          })
+          .then(function () {
+            stream.append({ event: '666' });
+            stream.append({ event: '777' });
+            return stream.commit(uuid());
+          })
+          .then(function () {
+            stream._version.should.equal(4);
+            done();
+          })
+          .catch(function (err) {
+            done(err);
+          });
+      });
     });
     it('published events should have increasing version', function (done) {
       var commitCount = 0;
