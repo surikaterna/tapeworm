@@ -24,6 +24,7 @@
     "event",
     "store"
   ],
+  "prettier": "prettier-config-surikaterna",
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -33,7 +34,9 @@
     "eslint-plugin-react": "^3.3.1",
     "istanbul": "^0.3.2",
     "mocha": "^2.0.1",
-    "should": "^4.1.0"
+    "should": "^4.1.0",
+    "prettier": "^2.1.2",
+    "prettier-config-surikaterna": "^1.0.1"
   },
   "dependencies": {
     "bluebird": "^2.5.2",
