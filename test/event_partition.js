@@ -175,10 +175,11 @@ describe('Partition', function () {
           return partition
             .append([new Commit('1', 'location', '1', 0, [{ type: 'dummy.event' }]), new Commit('2', 'location', '1', 1, [{ type: 'dummy2.event' }])])
             .then(function (c) {
-              return partition.delete('1', { some: 'header-value' }).then(function () {
+              return partition.delete('1', { some: 'header-value', payload: { test: true }, type: 'fail' }).then(function () {
                 return partition
                   .openStream('1')
                   .then(function (stream) {
+                    console.log(JSON.stringify(stream, null, 2));
                     done(new Error('able to open deleted stream'));
                   })
                   .catch(function (error) {
