@@ -194,5 +194,39 @@ describe('Partition', function () {
           done(err);
         });
     });
+
+    it.only('should delete and placeholder commit should have an id', function (done) {
+      var didIGetaDeleteEvent = false;
+      var es = new EventStore(null, (commit) => {
+        console.log(commit.id);
+        if (commit.events[0].type === '$stream.deleted.event' && commit.id) {
+          didIGetaDeleteEvent = true;
+        }
+        should(commit.id).not.be.null;
+      });
+      es.openPartition('location')
+        .then(function (partition) {
+          return partition
+            .append([new Commit('1', 'location', '1', 0, [{ type: 'dummy.event' }]), new Commit('2', 'location', '1', 1, [{ type: 'dummy2.event' }])])
+            .then(function (c) {
+              return partition.delete('1', { some: 'header-value', payload: { test: true }, type: 'fail' }).then(function () {
+                return partition
+                  .openStream('1')
+                  .then(function (stream) {
+                    console.log(JSON.stringify(stream, null, 2));
+                    done(new Error('able to open deleted stream'));
+                  })
+                  .catch(function (error) {
+                    error.message.should.equal('Stream is deleted');
+                    didIGetaDeleteEvent.should.be.true;
+                    done();
+                  });
+              });
+            });
+        })
+        .catch(function (err) {
+          done(err);
+        });
+    });
   });
 });
