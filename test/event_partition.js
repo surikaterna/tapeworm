@@ -195,7 +195,7 @@ describe('Partition', function () {
         });
     });
 
-    it.only('should delete and placeholder commit should have an id', function (done) {
+    it('should delete and placeholder commit should have an id', function (done) {
       var didIGetaDeleteEvent = false;
       var es = new EventStore(null, (commit) => {
         console.log(commit.id);
