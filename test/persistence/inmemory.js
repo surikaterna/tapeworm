@@ -1,5 +1,5 @@
 var should = require('should');
-var uuid = require("node-uuid").v4;
+var uuid = require("uuid").v4;
 var Promise = require("bluebird");
 
 var Store = require('../../lib/persistence/inmemory/inmemory_persistence');
