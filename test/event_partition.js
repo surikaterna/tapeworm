@@ -1,6 +1,6 @@
 var should = require('should');
 var Promise = require('bluebird');
-var uuid = require('node-uuid').v4;
+var uuid = require('uuid').v4;
 
 var EventStore = require('..');
 var Commit = EventStore.Commit;
@@ -195,7 +195,7 @@ describe('Partition', function () {
         });
     });
 
-    it.only('should delete and placeholder commit should have an id', function (done) {
+    it('should delete and placeholder commit should have an id', function (done) {
       var didIGetaDeleteEvent = false;
       var es = new EventStore(null, (commit) => {
         console.log(commit.id);
