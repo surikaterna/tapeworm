@@ -2,18 +2,20 @@
   "name": "tapeworm",
   "version": "0.4.0",
   "description": "",
-  "main": "index.js",
+  "main": "lib/index.js",
   "directories": {
     "test": "test"
   },
   "scripts": {
+    "build": "swc src --out-dir lib",
+    "build.watch": "swc src --out-dir lib --watch",
     "test": "mocha test --recursive",
     "test.watch": "mocha test --watch --recursive",
     "test.ci": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R tap >> tape.tap && istanbul report clover",
     "coverage": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R spec",
     "coverage-start": "istanbul cover node_modules/mocha/bin/_mocha test --recursive -- -u exports -R spec && start coverage/lcov-report/index.html",
-    "lint": "eslint --env node --env mocha lib test",
-    "lint.ci": "eslint --env node --env mocha -f checkstyle lib test > checkstyle-result.xml || echo"
+    "lint": "eslint --env node --env mocha src test",
+    "lint.ci": "eslint --env node --env mocha -f checkstyle src test > checkstyle-result.xml || echo"
   },
   "repository": {
     "type": "git",
@@ -28,15 +30,18 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@swc/cli": "^0.1.57",
+    "@swc/core": "^1.2.162",
     "babel-eslint": "^4.1.1",
+    "chokidar": "^3.5.3",
     "eslint": "^1.2.1",
     "eslint-config-airbnb-es5": "^1.0.8",
     "eslint-plugin-react": "^3.3.1",
     "istanbul": "^0.3.2",
     "mocha": "^2.0.1",
-    "should": "^4.1.0",
     "prettier": "^2.1.2",
-    "prettier-config-surikaterna": "^1.0.1"
+    "prettier-config-surikaterna": "^1.0.1",
+    "should": "^4.1.0"
   },
   "dependencies": {
     "bluebird": "^2.5.2",

@@ -116,10 +116,7 @@ EventStream.prototype._clearChanges = function () {
 };
 
 EventStream.prototype.revertChanges = function () {
-  //trunc the uncomitted events log
-  var arr = this._uncommittedEvents;
   this._uncommittedEvents = [];
-  delete arr;
 };
 
 EventStream.prototype._buildCommit = function (commitId, events) {
