@@ -1,4 +1,3 @@
 {
-    
-	"extends": "airbnb-es5"
+	"extends": "eslint-config-surikat"
 }
