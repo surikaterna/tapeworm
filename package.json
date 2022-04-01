@@ -9,11 +9,10 @@
   "scripts": {
     "build": "swc src --out-dir lib",
     "build.watch": "swc src --out-dir lib --watch",
-    "test": "mocha test --recursive",
-    "test.watch": "mocha test --watch --recursive",
-    "test.ci": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R tap >> tape.tap && istanbul report clover",
-    "coverage": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R spec",
-    "coverage-start": "istanbul cover node_modules/mocha/bin/_mocha test --recursive -- -u exports -R spec && start coverage/lcov-report/index.html",
+    "test": "jest",
+    "test.watch": "jest --watch",
+    "coverage": "jest --collectCoverage",
+    "coverage-start": "jest --collectCoverage && start coverage/lcov-report/index.html",
     "lint": "eslint --env node --env mocha src test",
     "lint.ci": "eslint --env node --env mocha -f checkstyle src test > checkstyle-result.xml || echo"
   },
@@ -32,16 +31,15 @@
   "devDependencies": {
     "@swc/cli": "^0.1.57",
     "@swc/core": "^1.2.162",
+    "@swc/jest": "^0.2.20",
     "babel-eslint": "^10.1.0",
     "chokidar": "^3.5.3",
     "eslint": "^8.12.0",
     "eslint-config-surikat": "^2.0.1",
     "eslint-plugin-import": "^2.25.4",
-    "istanbul": "^0.3.2",
-    "mocha": "^2.0.1",
+    "jest": "^27.5.1",
     "prettier": "^2.6.1",
-    "prettier-config-surikaterna": "^1.0.1",
-    "should": "^4.1.0"
+    "prettier-config-surikaterna": "^1.0.1"
   },
   "dependencies": {
     "bluebird": "^2.5.2",

@@ -1,4 +1,3 @@
-var should = require('should');
 var uuid = require("uuid").v4;
 var Promise = require("bluebird");
 
@@ -17,7 +16,7 @@ describe('inmemory_persistence', function () {
         var events = [new Event(uuid(), 'type1', { test: 11 })];
         var commit = new Commit(uuid(), 'master', '1', 0, events);
         partition.append(commit).then(function () { return partition.queryAll() }).then(function (x) {
-          x.length.should.equal(1);
+          expect(x).toHaveLength(1);
           done();
         }).catch(function (err) {
           done(err);
@@ -37,8 +36,8 @@ describe('inmemory_persistence', function () {
         partition.append(commit);
 
         Promise.join(partition.queryStream('1'), partition.queryStream('2'), function (r1, r2) {
-          r1.length.should.equal(1);
-          r2.length.should.equal(1);
+          expect(r1).toHaveLength(1);
+          expect(r2).toHaveLength(1);
           done();
         }).catch(function (err) {
           done(err);
@@ -57,7 +56,7 @@ describe('inmemory_persistence', function () {
         var commit = new Commit(uuid(), 'master', '1', 1, events);
         partition.append(commit);
         partition.queryAll().then(function (res) {
-          res.length.should.equal(2);
+          expect(res).toHaveLength(2);
         });
       });
     });
@@ -72,7 +71,7 @@ describe('inmemory_persistence', function () {
         var commit = new Commit(uuid(), 'master', '1', 1, events);
         partition.append(commit);
         partition.queryStream('1', 2).then(function (res) {
-          res.length.should.equal(1);
+          expect(res).toHaveLength(1);
         });
       });
     });
@@ -86,8 +85,8 @@ describe('inmemory_persistence', function () {
         var commit = new Commit(uuid(), 'master', '1', 1, events);
         partition.append(commit);
         partition.queryStream('1', 1).then(function (res) {
-          res.length.should.equal(2);
-          res[0].events.length.should.equal(1);
+          expect(res).toHaveLength(2);
+          expect(res[0].events).toHaveLength(1);
         });
       });
     });
@@ -133,14 +132,14 @@ describe('inmemory_persistence', function () {
     it('getting the same partition twice should return same instance', function (done) {
       var store = new Store();
       Promise.join(store.openPartition('1'), store.openPartition('1'), function (p1, p2) {
-        p1.should.equal(p2);
+        expect(p1).toEqual(p2);
         done();
       });
     });
     it('not indicating partition name should give master partition', function (done) {
       var store = new Store();
       Promise.join(store.openPartition(), store.openPartition('master'), function (p1, p2) {
-        p1.should.equal(p2);
+        expect(p1).toEqual(p2);
         done();
       });
     });
@@ -151,7 +150,7 @@ describe('inmemory_persistence', function () {
       store.openPartition('1').then(function (part) {
         part.storeSnapshot('stream1', { iAmSnapshot: true }, 10).then(function (snapshot) {
           part.loadSnapshot('stream1').then(function (newSnapshot) {
-            newSnapshot.should.equal(snapshot);
+            expect(newSnapshot).toEqual(snapshot);
             done();
           });
         });

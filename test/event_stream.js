@@ -1,4 +1,3 @@
-var should = require('should');
 var Promise = require('bluebird');
 var uuid = require('uuid').v4;
 
@@ -10,7 +9,7 @@ describe('event_stream', function () {
     it('should return 0 commits for new stream', function (done) {
       var es = new EventStore();
       es.openPartition('location').call('openStream', '1').then(function (stream) {
-        stream.getCommittedEvents().length.should.equal(0);
+        expect(stream.getCommittedEvents()).toHaveLength(0);
         done();
       }).catch(function (err) {
         done(err);
@@ -22,7 +21,7 @@ describe('event_stream', function () {
       var es = new EventStore();
       es.openPartition('location').call('openStream', '1').then(function (stream) {
         stream.commit(uuid());
-        stream.getCommittedEvents().length.should.equal(0);
+        expect(stream.getCommittedEvents()).toHaveLength(0);
         done();
       }).catch(function (err) {
         done(err);
@@ -43,14 +42,14 @@ describe('event_stream', function () {
       var stream = new EventStream(mockPartition, '11');
       stream.append({ event: '123' });
       stream.commit(uuid());
-      mockPartition.called.should.be.true;
+      expect(mockPartition.called).toBe(true);
       done();
     });
     it('should keep track of uncommitted events', function (done) {
       var es = new EventStore();
       es.openPartition('location').call('openStream', '1').then(function (stream) {
         stream.append({ event: '123' });
-        stream.getUncommittedEvents().length.should.equal(1);
+        expect(stream.getUncommittedEvents()).toHaveLength(1);
         done();
       }).catch(function (err) {
         done(err);
@@ -65,8 +64,8 @@ describe('event_stream', function () {
         return stream.commit(uuid());
       })
         .then(function () {
-          stream.getUncommittedEvents().length.should.equal(0);
-          stream.getCommittedEvents().length.should.equal(1);
+          expect(stream.getUncommittedEvents()).toHaveLength(0);
+          expect(stream.getCommittedEvents()).toHaveLength(1);
           done();
         }).catch(function (err) {
           done(err);
@@ -82,8 +81,8 @@ describe('event_stream', function () {
         return stream.commit(uuid());
       })
         .then(function () {
-          stream.getCommittedEvents().length.should.equal(2);
-          stream._commitSequence.should.equal(0);
+          expect(stream.getCommittedEvents()).toHaveLength(2);
+          expect(stream._commitSequence).toBe(0);
           done();
         }).catch(function (err) {
           done(err);
@@ -104,8 +103,8 @@ describe('event_stream', function () {
           return stream.commit(uuid());
         })
         .then(function () {
-          stream.getCommittedEvents().length.should.equal(4);
-          stream._commitSequence.should.equal(1);
+          expect(stream.getCommittedEvents()).toHaveLength(4);
+          expect(stream._commitSequence).toBe(1);
           done();
         }).catch(function (err) {
           done(err);
@@ -122,13 +121,13 @@ describe('event_stream', function () {
             return stream.commit(uuid());
           })
           .then(function () {
-            stream._commitSequence.should.equal(0);
+            expect(stream._commitSequence).toBe(0);
             stream.append({ event: '666' });
             stream.append({ event: '777' });
             return stream.commit(uuid());
           })
           .then(function () {
-            stream._commitSequence.should.equal(1);
+            expect(stream._commitSequence).toBe(1);
             done();
           })
           .catch(function (err) {
@@ -151,8 +150,8 @@ describe('event_stream', function () {
           return stream.commit(uuid());
         })
         .then(function () {
-          stream.getCommittedEvents()[3].version.should.equal(3);
-          stream._version.should.equal(4);
+          expect(stream.getCommittedEvents()[3].version).toBe(3);
+          expect(stream._version).toBe(4);
           done();
         }).catch(function (err) {
           done(err);
@@ -175,7 +174,7 @@ describe('event_stream', function () {
             return stream.commit(uuid());
           })
           .then(function () {
-            stream._version.should.equal(4);
+            expect(stream._version).toBe(4);
             done();
           })
           .catch(function (err) {
@@ -187,7 +186,7 @@ describe('event_stream', function () {
       var commitCount = 0;
 
       var es = new EventStore(null, function (commit) {
-        commit.events[0].should.have.property('version');
+        expect(commit.events[0]).toHaveProperty('version');
         if (++commitCount == 2) {
           done();
         }
@@ -205,7 +204,7 @@ describe('event_stream', function () {
           return stream.commit(uuid());
         })
         .then(function () {
-          stream.getCommittedEvents()[1].version.should.equal(1);
+          expect(stream.getCommittedEvents()[1].version).toBe(1);
         }).catch(function (err) {
           done(err);
         });

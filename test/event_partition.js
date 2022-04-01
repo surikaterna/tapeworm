@@ -1,4 +1,3 @@
-var should = require('should');
 var Promise = require('bluebird');
 var uuid = require('uuid').v4;
 
@@ -12,7 +11,7 @@ describe('Partition', function () {
       es.openPartition('location')
         .then(function (partition) {
           partition.append(new Commit('1', 'location', '1', 0, [])).then(function (c) {
-            c[0].events.length.should.equal(0);
+            expect(c[0].events).toHaveLength(0);
             done();
           });
         })
@@ -25,7 +24,7 @@ describe('Partition', function () {
       es.openPartition('location')
         .then(function (partition) {
           return partition.append([new Commit('1', 'location', '1', 0, []), new Commit('2', 'location', '1', 1, [])]).then(function (c) {
-            c.length.should.equal(2);
+            expect(c).toHaveLength(2);
             done();
           });
         })
@@ -42,7 +41,7 @@ describe('Partition', function () {
           return partition.append([new Commit('1', 'location', '1', 0, []), new Commit('2', 'location', '1', 1, [])]).then(function (c) {
             return partition._truncateStreamFrom('1', 0).then(function () {
               return partition.openStream('1').then(function (stream) {
-                stream.getVersion().should.equal(-1);
+                expect(stream.getVersion()).toBe(-1);
                 done();
               });
             });
@@ -59,7 +58,7 @@ describe('Partition', function () {
           return partition.append([new Commit('1', 'location', '1', 0, [{}]), new Commit('2', 'location', '1', 1, [{}])]).then(function (c) {
             return partition._truncateStreamFrom('1', 1).then(function () {
               return partition.openStream('1').then(function (stream) {
-                stream.getVersion().should.equal(1);
+                expect(stream.getVersion()).toBe(1);
                 done();
               });
             });
@@ -78,7 +77,7 @@ describe('Partition', function () {
           var commit = new Commit('1', 'location', '1', 0, []);
           return partition.append([commit, new Commit('2', 'location', '1', 1, [])]).then(function (c) {
             return partition._applyCommitHeader(commit.id, { authorative: true }).then(function (commit) {
-              commit.authorative.should.be.ok;
+              expect(commit.authorative).toBeTruthy();
               done();
             });
           });
@@ -125,10 +124,10 @@ describe('Partition', function () {
           es.openPartition('location').then(function (part) {
             part.storeSnapshot(streamId, { test: 'snapshot' }, 2);
             part.queryStreamWithSnapshot(streamId).then(function (res) {
-              res.snapshot.version.should.eql(2);
-              res.commits.length.should.eql(1);
-              res.commits[0].events.length.should.eql(2);
-              res.commits[0].events[0].version.should.eql(2);
+              expect(res.snapshot.version).toBe(2);
+              expect(res.commits).toHaveLength(1);
+              expect(res.commits[0].events).toHaveLength(2);
+              expect(res.commits[0].events[0].version).toBe(2);
               done();
             });
           });
@@ -151,8 +150,8 @@ describe('Partition', function () {
           es.openPartition('location').then(function (part) {
             part.storeSnapshot(streamId, { test: 'snapshot' }, 2);
             part.queryStreamWithSnapshot(streamId, function (err, res) {
-              res.snapshot.version.should.eql(2);
-              res.commits.length.should.eql(0);
+              expect(res.snapshot.version).toBe(2);
+              expect(res.commits).toHaveLength(0);
               done();
             });
           });
@@ -183,8 +182,8 @@ describe('Partition', function () {
                     done(new Error('able to open deleted stream'));
                   })
                   .catch(function (error) {
-                    error.message.should.equal('Stream is deleted');
-                    didIGetaDeleteEvent.should.be.true;
+                    expect(error.message).toBe('Stream is deleted');
+                    expect(didIGetaDeleteEvent).toBe(true);
                     done();
                   });
               });
@@ -198,11 +197,10 @@ describe('Partition', function () {
     it('should delete and placeholder commit should have an id', function (done) {
       var didIGetaDeleteEvent = false;
       var es = new EventStore(null, (commit) => {
-        console.log(commit.id);
         if (commit.events[0].type === '$stream.deleted.event' && commit.id) {
           didIGetaDeleteEvent = true;
         }
-        should(commit.id).not.be.null;
+        expect(commit.id).not.toBeNull();
       });
       es.openPartition('location')
         .then(function (partition) {
@@ -217,8 +215,8 @@ describe('Partition', function () {
                     done(new Error('able to open deleted stream'));
                   })
                   .catch(function (error) {
-                    error.message.should.equal('Stream is deleted');
-                    didIGetaDeleteEvent.should.be.true;
+                    expect(error.message).toBe('Stream is deleted');
+                    expect(didIGetaDeleteEvent).toBe(true);
                     done();
                   });
               });
