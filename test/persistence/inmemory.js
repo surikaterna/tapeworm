@@ -2,11 +2,11 @@ var should = require('should');
 var uuid = require("uuid").v4;
 var Promise = require("bluebird");
 
-var Store = require('../../lib/persistence/inmemory/inmemory_persistence');
-var Commit = require('../../lib/persistence/commit');
-var Event = require('../../lib/event');
-var PersistenceConcurrencyError = require('../../lib/persistence/concurrency_error');
-var PersistenceDuplicateCommitError = require('../../lib/persistence/duplicate_commit_error');
+var Store = require('../../src/persistence/inmemory/inmemory_persistence');
+var Commit = require('../../src/persistence/commit');
+var Event = require('../../src/event');
+var PersistenceConcurrencyError = require('../../src/persistence/concurrency_error');
+var PersistenceDuplicateCommitError = require('../../src/persistence/duplicate_commit_error');
 
 describe('inmemory_persistence', function () {
   describe('#commit', function () {

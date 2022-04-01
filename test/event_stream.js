@@ -3,7 +3,7 @@ var Promise = require('bluebird');
 var uuid = require('uuid').v4;
 
 var EventStore = require('..');
-var EventStream = require('../lib/event_stream');
+var EventStream = require('../src/event_stream');
 
 describe('event_stream', function () {
   describe('#openStream', function (done) {

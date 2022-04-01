@@ -1,1 +1,1 @@
-module.exports = require('./lib/event_store');
+module.exports = require('./src/event_store');
