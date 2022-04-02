@@ -2,7 +2,7 @@ import {v4 as uuid} from "uuid";
 import Promise from "bluebird";
 import {InMemoryPersistenceStore as Store} from '../../src/persistence/inmemory/InMemoryPersistenceStore';
 import {Commit} from '../../src/persistence/Commit';
-import Event from '../../src/Event';
+import {Event} from '../../src/Event';
 import {ConcurrencyError as PersistenceConcurrencyError} from '../../src/persistence/ConcurrencyError';
 import {DuplicateCommitError as PersistenceDuplicateCommitError} from '../../src/persistence/DuplicateCommitError';
 

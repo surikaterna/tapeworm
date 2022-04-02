@@ -1,4 +1,4 @@
-class Event {
+export class Event {
 	constructor(id, type, data, metadata) {
 		this.id = id;
 		this.type = type;
@@ -9,5 +9,3 @@ class Event {
 		this.revision = null;
 	}
 }
-
-export default Event;
