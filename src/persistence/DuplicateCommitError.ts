@@ -1,6 +1,6 @@
 export class DuplicateCommitError extends Error {
-  constructor(message) {
-    super();
+  constructor(message: string) {
+    super(message);
     this.message = message;
   }
 }
