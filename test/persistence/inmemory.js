@@ -1,6 +1,6 @@
 import {v4 as uuid} from "uuid";
 import Promise from "bluebird";
-import Store from '../../src/persistence/inmemory/InMemoryPersistence';
+import {InMemoryPersistenceStore as Store} from '../../src/persistence/inmemory/InMemoryPersistenceStore';
 import {Commit} from '../../src/persistence/Commit';
 import Event from '../../src/Event';
 import {ConcurrencyError as PersistenceConcurrencyError} from '../../src/persistence/ConcurrencyError';

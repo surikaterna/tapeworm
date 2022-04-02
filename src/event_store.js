@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import Partition from './EventStorePartition';
-import InMemoryPersistenceStore from './persistence/inmemory/InMemoryPersistence';
+import {InMemoryPersistenceStore} from './persistence/inmemory/InMemoryPersistenceStore';
 
 var _PENDING = {};
 

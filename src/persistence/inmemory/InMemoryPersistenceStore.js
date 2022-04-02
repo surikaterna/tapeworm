@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import {InMemoryPartition as Partition} from './InMemoryPartition';
 
-class InMemoryPersistence {
+export class InMemoryPersistenceStore {
   constructor() {
     this._partitions = [];
   }
@@ -23,5 +23,3 @@ class InMemoryPersistence {
     return partition;
   }
 }
-
-export default InMemoryPersistence;
