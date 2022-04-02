@@ -5,10 +5,10 @@ Event sourcing for Node and Browserify
 
 ## Upgrade Guide
 
-* [ ] Replace Mocha, Should & Istanbul with Jest
-* [ ] Upgrade dependencies
-* [ ] Update to modern class based JS with Babel
-    * [ ] Add Babel transpilation
-    * [ ] Replace bluebird with native promises
+* [x] Replace Mocha, Should & Istanbul with Jest
+* [x] Upgrade dependencies
+* [x] Update to modern class based JS with SWC
+    * [x] Add SWC
+    * [ ] ~~Replace bluebird with native promises~~
 * [ ] Upgrade to TS
 * [ ] Add documentation

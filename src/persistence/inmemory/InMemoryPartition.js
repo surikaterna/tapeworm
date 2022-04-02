@@ -1,5 +1,5 @@
 import Promise from 'bluebird';
-import {assign, clone, contains, find, isFunction, without} from 'lodash';
+import {assign, clone, find, includes, isFunction, without} from 'lodash';
 import {ConcurrencyError} from '../ConcurrencyError';
 import {DuplicateCommitError} from '../DuplicateCommitError';
 
@@ -46,11 +46,11 @@ export class InMemoryPartition {
   append(commit, callback) {
     commit.isDispatched = false;
     // Check for duplicates
-    if (contains(this._commitIds, commit.id)) {
+    if (includes(this._commitIds, commit.id)) {
       throw new DuplicateCommitError('Duplicate commit of ' + commit.id);
     }
     const concurrencyKey = getConcurrencyKey(commit);
-    if (contains(this._commitConcurrencyCheck, concurrencyKey)) {
+    if (includes(this._commitConcurrencyCheck, concurrencyKey)) {
       throw new ConcurrencyError('Concurrency error on stream ' + commit.streamId);
     }
     // Check concurrency
