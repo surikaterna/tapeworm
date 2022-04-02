@@ -1,5 +1,5 @@
 import Promise from 'bluebird';
-import Partition from './inmemory_partition';
+import Partition from './InMemoryPartition';
 
 class InMemoryPersistence {
   constructor() {
