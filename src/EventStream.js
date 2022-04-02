@@ -3,7 +3,7 @@ import {forEach} from 'lodash';
 import {Commit} from './persistence/Commit';
 
 // writeOnly - will never read entire stream from
-class EventStream {
+export class EventStream {
   constructor(eventPartition, streamId, writeOnly) {
     if (streamId === undefined) {
       throw new Error('StreamId must be defined!');
@@ -135,5 +135,3 @@ class EventStream {
     return this._uncommittedEvents.slice();
   }
 }
-
-export default EventStream;

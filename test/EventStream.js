@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import {v4 as uuid} from 'uuid';
-import EventStream from '../src/EventStream';
+import {EventStream} from '../src/EventStream';
 import EventStore from '../src/event_store';
 
 describe('event_stream', function () {
