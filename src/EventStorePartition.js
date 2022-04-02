@@ -3,7 +3,7 @@ import {forEach, isArray} from 'lodash';
 import {v4 as uuid} from 'uuid';
 import EventStream from './EventStream';
 
-class EventStorePartition {
+export class EventStorePartition {
   constructor(partitionId, persistencePartition, dispatchService) {
     this._partitionId = partitionId;
     this._persistencePartition = persistencePartition;
@@ -129,5 +129,3 @@ class EventStorePartition {
     return this._persistencePartition.applyCommitHeader(commit, header, callback);
   }
 }
-
-export default EventStorePartition;
