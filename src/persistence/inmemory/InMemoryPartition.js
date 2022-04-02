@@ -3,7 +3,7 @@ import {assign, clone, contains, find, isFunction, without} from 'lodash';
 import {ConcurrencyError} from '../ConcurrencyError';
 import {DuplicateCommitError} from '../DuplicateCommitError';
 
-class InMemoryPartition {
+export class InMemoryPartition {
   constructor() {
     this._commits = [];
     this._streamIndex = {};
@@ -142,5 +142,3 @@ class InMemoryPartition {
 function getConcurrencyKey(commit) {
   return commit.streamId + '-' + commit.commitSequence;
 }
-
-export default InMemoryPartition;
