@@ -7,8 +7,8 @@
     "test": "test"
   },
   "scripts": {
-    "build": "swc src --out-dir lib",
-    "build.watch": "swc src --out-dir lib --watch",
+    "build": "rimraf lib && swc src --out-dir lib",
+    "build.watch": "npm run build -- --watch",
     "test": "jest",
     "test.watch": "jest --watch",
     "coverage": "jest --collectCoverage",
@@ -39,7 +39,8 @@
     "eslint-plugin-import": "^2.25.4",
     "jest": "^27.5.1",
     "prettier": "^2.6.1",
-    "prettier-config-surikaterna": "^1.0.1"
+    "prettier-config-surikaterna": "^1.0.1",
+    "rimraf": "^3.0.2"
   },
   "dependencies": {
     "bluebird": "^2.5.2",

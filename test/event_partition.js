@@ -1,8 +1,7 @@
-var Promise = require('bluebird');
-var uuid = require('uuid').v4;
-
-var EventStore = require('..');
-var Commit = EventStore.Commit;
+import Promise from 'bluebird';
+import {v4 as uuid} from 'uuid';
+import EventStore from '..';
+import Commit from '../src/persistence/Commit';
 
 describe('Partition', function () {
   describe('#append', function (done) {
