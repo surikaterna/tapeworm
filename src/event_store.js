@@ -47,7 +47,7 @@ var resolve
 
 module.exports = EventStore;
 module.exports.Event = require('./Event');
-module.exports.EventStream = require('./event_stream');
+module.exports.EventStream = require('./EventStream');
 module.exports.Commit = require('./persistence/commit');
 module.exports.ConcurrencyError = require('./persistence/concurrency_error');
 module.exports.DuplicateCommitError = require('./persistence/duplicate_commit_error');

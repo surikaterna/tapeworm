@@ -1,8 +1,7 @@
-var Promise = require('bluebird');
-var uuid = require('uuid').v4;
-
-var EventStore = require('..');
-var EventStream = require('../src/event_stream');
+import Promise from 'bluebird';
+import {v4 as uuid} from 'uuid';
+import EventStream from '../src/EventStream';
+import EventStore from '..';
 
 describe('event_stream', function () {
   describe('#openStream', function (done) {
@@ -40,7 +39,7 @@ describe('event_stream', function () {
         }
       };
       var stream = new EventStream(mockPartition, '11');
-      stream.append({ event: '123' });
+      stream.append({event: '123'});
       stream.commit(uuid());
       expect(mockPartition.called).toBe(true);
       done();
@@ -48,7 +47,7 @@ describe('event_stream', function () {
     it('should keep track of uncommitted events', function (done) {
       var es = new EventStore();
       es.openPartition('location').call('openStream', '1').then(function (stream) {
-        stream.append({ event: '123' });
+        stream.append({event: '123'});
         expect(stream.getUncommittedEvents()).toHaveLength(1);
         done();
       }).catch(function (err) {
@@ -60,7 +59,7 @@ describe('event_stream', function () {
       var stream;
       es.openPartition('location').call('openStream', '1').then(function (stream1) {
         stream = stream1;
-        stream.append({ event: '123' });
+        stream.append({event: '123'});
         return stream.commit(uuid());
       })
         .then(function () {
@@ -68,16 +67,16 @@ describe('event_stream', function () {
           expect(stream.getCommittedEvents()).toHaveLength(1);
           done();
         }).catch(function (err) {
-          done(err);
-        });
+        done(err);
+      });
     });
     it('two events becomes one commit', function (done) {
       var es = new EventStore();
       var stream;
       es.openPartition('location').call('openStream', '1').then(function (stream1) {
         stream = stream1;
-        stream.append({ event: '123' });
-        stream.append({ event: '999' });
+        stream.append({event: '123'});
+        stream.append({event: '999'});
         return stream.commit(uuid());
       })
         .then(function () {
@@ -85,21 +84,21 @@ describe('event_stream', function () {
           expect(stream._commitSequence).toBe(0);
           done();
         }).catch(function (err) {
-          done(err);
-        });
+        done(err);
+      });
     });
     it('two commits gets increasing commit sequence', function (done) {
       var es = new EventStore();
       var stream;
       es.openPartition('location').call('openStream', '1').then(function (stream1) {
         stream = stream1;
-        stream.append({ event: '123' });
-        stream.append({ event: '999' });
+        stream.append({event: '123'});
+        stream.append({event: '999'});
         return stream.commit(uuid());
       })
         .then(function () {
-          stream.append({ event: '666' });
-          stream.append({ event: '777' });
+          stream.append({event: '666'});
+          stream.append({event: '777'});
           return stream.commit(uuid());
         })
         .then(function () {
@@ -107,8 +106,8 @@ describe('event_stream', function () {
           expect(stream._commitSequence).toBe(1);
           done();
         }).catch(function (err) {
-          done(err);
-        });
+        done(err);
+      });
     });
     it('event stream writeOnly', function (done) {
       var es = new EventStore();
@@ -117,13 +116,13 @@ describe('event_stream', function () {
         partition.openStream('1', true)
           .then(function (stream1) {
             stream = stream1;
-            stream.append({ event: '123' });
+            stream.append({event: '123'});
             return stream.commit(uuid());
           })
           .then(function () {
             expect(stream._commitSequence).toBe(0);
-            stream.append({ event: '666' });
-            stream.append({ event: '777' });
+            stream.append({event: '666'});
+            stream.append({event: '777'});
             return stream.commit(uuid());
           })
           .then(function () {
@@ -140,13 +139,13 @@ describe('event_stream', function () {
       var stream;
       es.openPartition('location').call('openStream', '1').then(function (stream1) {
         stream = stream1;
-        stream.append({ event: '123' });
-        stream.append({ event: '999' });
+        stream.append({event: '123'});
+        stream.append({event: '999'});
         return stream.commit(uuid());
       })
         .then(function () {
-          stream.append({ event: '666' });
-          stream.append({ event: '777' });
+          stream.append({event: '666'});
+          stream.append({event: '777'});
           return stream.commit(uuid());
         })
         .then(function () {
@@ -154,8 +153,8 @@ describe('event_stream', function () {
           expect(stream._version).toBe(4);
           done();
         }).catch(function (err) {
-          done(err);
-        });
+        done(err);
+      });
     });
     it('committed events should have increasing version (writeOnly)', function (done) {
       var es = new EventStore();
@@ -164,13 +163,13 @@ describe('event_stream', function () {
         partition.openStream('1', true)
           .then(function (stream1) {
             stream = stream1;
-            stream.append({ event: '123' });
-            stream.append({ event: '999' });
+            stream.append({event: '123'});
+            stream.append({event: '999'});
             return stream.commit(uuid());
           })
           .then(function () {
-            stream.append({ event: '666' });
-            stream.append({ event: '777' });
+            stream.append({event: '666'});
+            stream.append({event: '777'});
             return stream.commit(uuid());
           })
           .then(function () {
@@ -194,20 +193,20 @@ describe('event_stream', function () {
       var stream;
       es.openPartition('location').call('openStream', '1').then(function (stream1) {
         stream = stream1;
-        stream.append({ event: '123' });
-        stream.append({ event: '999' });
+        stream.append({event: '123'});
+        stream.append({event: '999'});
         return stream.commit(uuid());
       })
         .then(function () {
-          stream.append({ event: '666' });
-          stream.append({ event: '777' });
+          stream.append({event: '666'});
+          stream.append({event: '777'});
           return stream.commit(uuid());
         })
         .then(function () {
           expect(stream.getCommittedEvents()[1].version).toBe(1);
         }).catch(function (err) {
-          done(err);
-        });
+        done(err);
+      });
     });
   });
 });

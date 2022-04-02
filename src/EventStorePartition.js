@@ -1,7 +1,7 @@
 import {forEach, isArray} from 'lodash';
 import Promise from 'bluebird';
 import {v4 as uuid} from 'uuid';
-import EventStream from './event_stream';
+import EventStream from './EventStream';
 
 class EventStorePartition {
   constructor(partitionId, persistencePartition, dispatchService) {
