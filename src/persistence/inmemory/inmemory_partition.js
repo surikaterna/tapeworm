@@ -1,7 +1,7 @@
-var _ = require('lodash');
-var Promise = require('bluebird');
-var ConcurrencyError = require('../concurrency_error');
-var DuplicateCommitError = require('../duplicate_commit_error');
+import {assign, clone, contains, find, isFunction, without} from 'lodash';
+import Promise from 'bluebird';
+import ConcurrencyError from '../ConcurrencyError';
+import DuplicateCommitError from '../duplicate_commit_error';
 
 var InMemoryPartition = function () {
   this._commits = [];
@@ -14,6 +14,7 @@ var InMemoryPartition = function () {
 function getConcurrencyKey(commit) {
   return commit.streamId + '-' + commit.commitSequence;
 }
+
 InMemoryPartition.prototype._promisify = function (value, callback) {
   return Promise.resolve(value).nodeify(callback);
 };
@@ -26,9 +27,9 @@ InMemoryPartition.prototype.truncateStreamFrom = function (streamId, commitSeque
 
     if (commit.commitSequence >= commitSequence) {
       //remove from commitId
-      self._commitIds = _.without(self._commitIds, commit.id);
-      self._commitConcurrencyCheck = _.without(self._commitConcurrencyCheck, getConcurrencyKey(commit));
-      self._commits = _.without(self._commits, commit);
+      self._commitIds = without(self._commitIds, commit.id);
+      self._commitConcurrencyCheck = without(self._commitConcurrencyCheck, getConcurrencyKey(commit));
+      self._commits = without(self._commits, commit);
       // i--;
     }
   }
@@ -43,9 +44,9 @@ InMemoryPartition.prototype.truncateStreamFrom = function (streamId, commitSeque
 
 InMemoryPartition.prototype.applyCommitHeader = function (commitId, header, callback) {
   var self = this;
-  var commit = _.find(this._commits, { id: commitId });
+  var commit = find(this._commits, {id: commitId});
   if (commit) {
-    _.assign(commit, header);
+    assign(commit, header);
   } else {
     throw new Error('Trying to apply header to missing commit: ' + commitId);
   }
@@ -55,11 +56,11 @@ InMemoryPartition.prototype.applyCommitHeader = function (commitId, header, call
 InMemoryPartition.prototype.append = function (commit, callback) {
   commit.isDispatched = false;
   //check for duplicates
-  if (_.contains(this._commitIds, commit.id)) {
+  if (contains(this._commitIds, commit.id)) {
     throw new DuplicateCommitError('Duplicate commit of ' + commit.id);
   }
   var concurrencyKey = getConcurrencyKey(commit);
-  if (_.contains(this._commitConcurrencyCheck, concurrencyKey)) {
+  if (contains(this._commitConcurrencyCheck, concurrencyKey)) {
     throw new ConcurrencyError('Concurrency error on stream ' + commit.streamId);
   }
   //check concurrency
@@ -75,7 +76,7 @@ InMemoryPartition.prototype.append = function (commit, callback) {
 };
 
 InMemoryPartition.prototype.storeSnapshot = function (streamId, snapshot, version, callback) {
-  return this._promisify((this._snapshots[streamId] = { id: streamId, version: version, snapshot: snapshot }), callback);
+  return this._promisify((this._snapshots[streamId] = {id: streamId, version: version, snapshot: snapshot}), callback);
 };
 
 // Loads the latest snapshot
@@ -112,7 +113,7 @@ InMemoryPartition.prototype.getLatestCommit = function (streamId, callback) {
 };
 
 InMemoryPartition.prototype.queryStream = function (streamId, fromEventSequence, callback) {
-  if (_.isFunction(fromEventSequence)) {
+  if (isFunction(fromEventSequence)) {
     callback = fromEventSequence;
     fromEventSequence = 0;
   }
@@ -134,7 +135,7 @@ InMemoryPartition.prototype.queryStream = function (streamId, fromEventSequence,
 
       result = result.slice(startCommitId - (tooMany > 0 ? 1 : 0));
       if (tooMany > 0) {
-        result[0] = _.clone(result[0]); // avoid modifying reference
+        result[0] = clone(result[0]); // avoid modifying reference
         result[0].events = result[0].events.slice(result[0].events.length - tooMany);
       }
     }
