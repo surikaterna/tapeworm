@@ -1,6 +1,5 @@
-var Promise = require('bluebird');
-
-var EventStore = require('..');
+import Promise from 'bluebird';
+import {EventStore} from '../src/EventStore';
 
 describe('event_store', function() {
 	describe('#openPartition', function(done) {

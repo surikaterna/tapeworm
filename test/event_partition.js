@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import {v4 as uuid} from 'uuid';
-import EventStore from '..';
+import {EventStore} from '../src/EventStore';
 import {Commit} from '../src/persistence/Commit';
 
 describe('Partition', function () {
