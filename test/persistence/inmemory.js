@@ -1,11 +1,10 @@
-var uuid = require("uuid").v4;
-var Promise = require("bluebird");
-
-var Store = require('../../src/persistence/inmemory/inmemory_persistence');
-var Commit = require('../../src/persistence/commit');
-var Event = require('../../src/event');
-var PersistenceConcurrencyError = require('../../src/persistence/concurrency_error');
-var PersistenceDuplicateCommitError = require('../../src/persistence/duplicate_commit_error');
+import {v4 as uuid} from "uuid";
+import Promise from "bluebird";
+import Store from '../../src/persistence/inmemory/inmemory_persistence';
+import Commit from '../../src/persistence/commit';
+import Event from '../../src/Event';
+import PersistenceConcurrencyError from '../../src/persistence/concurrency_error';
+import PersistenceDuplicateCommitError from '../../src/persistence/duplicate_commit_error';
 
 describe('inmemory_persistence', function () {
   describe('#commit', function () {
@@ -13,9 +12,11 @@ describe('inmemory_persistence', function () {
     it('should accept a commit and store it', function (done) {
       var store = new Store();
       store.openPartition('1').then(function (partition) {
-        var events = [new Event(uuid(), 'type1', { test: 11 })];
+        var events = [new Event(uuid(), 'type1', {test: 11})];
         var commit = new Commit(uuid(), 'master', '1', 0, events);
-        partition.append(commit).then(function () { return partition.queryAll() }).then(function (x) {
+        partition.append(commit).then(function () {
+          return partition.queryAll()
+        }).then(function (x) {
           expect(x).toHaveLength(1);
           done();
         }).catch(function (err) {
@@ -27,11 +28,11 @@ describe('inmemory_persistence', function () {
     it('commit in one stream is not visible in other', function (done) {
       var store = new Store();
       store.openPartition('1').then(function (partition) {
-        var events = [new Event(uuid(), 'type1', { test: 11 })];
+        var events = [new Event(uuid(), 'type1', {test: 11})];
         var commit = new Commit(uuid(), 'master', '1', 0, events);
         partition.append(commit);
 
-        var events = [new Event(uuid(), 'type2', { test: 22 })];
+        var events = [new Event(uuid(), 'type2', {test: 22})];
         var commit = new Commit(uuid(), 'master', '2', 0, events);
         partition.append(commit);
 
@@ -49,10 +50,10 @@ describe('inmemory_persistence', function () {
     it('two commits in one stream are visible', function () {
       var store = new Store();
       store.openPartition('1').then(function (partition) {
-        var events = [new Event(uuid(), 'type1', { test: 11 })];
+        var events = [new Event(uuid(), 'type1', {test: 11})];
         var commit = new Commit(uuid(), 'master', '1', 0, events);
         partition.append(commit);
-        var events = [new Event(uuid(), 'type2', { test: 22 })];
+        var events = [new Event(uuid(), 'type2', {test: 22})];
         var commit = new Commit(uuid(), 'master', '1', 1, events);
         partition.append(commit);
         partition.queryAll().then(function (res) {
@@ -64,10 +65,10 @@ describe('inmemory_persistence', function () {
     it('should skip events', function () {
       var store = new Store();
       store.openPartition('1').then(function (partition) {
-        var events = [new Event(uuid(), 'type1', { test: 11 }), new Event(uuid(), 'type1', { test: 12})];
+        var events = [new Event(uuid(), 'type1', {test: 11}), new Event(uuid(), 'type1', {test: 12})];
         var commit = new Commit(uuid(), 'master', '1', 0, events);
         partition.append(commit);
-        var events = [new Event(uuid(), 'type2', { test: 22 })];
+        var events = [new Event(uuid(), 'type2', {test: 22})];
         var commit = new Commit(uuid(), 'master', '1', 1, events);
         partition.append(commit);
         partition.queryStream('1', 2).then(function (res) {
@@ -78,10 +79,10 @@ describe('inmemory_persistence', function () {
     it('should skip events and split commit if inbetween', function () {
       var store = new Store();
       store.openPartition('1').then(function (partition) {
-        var events = [new Event(uuid(), 'type1', { test: 11 }), new Event(uuid(), 'type1', { test: 12})];
+        var events = [new Event(uuid(), 'type1', {test: 11}), new Event(uuid(), 'type1', {test: 12})];
         var commit = new Commit(uuid(), 'master', '1', 0, events);
         partition.append(commit);
-        var events = [new Event(uuid(), 'type2', { test: 22 })];
+        var events = [new Event(uuid(), 'type2', {test: 22})];
         var commit = new Commit(uuid(), 'master', '1', 1, events);
         partition.append(commit);
         partition.queryStream('1', 1).then(function (res) {
@@ -95,7 +96,7 @@ describe('inmemory_persistence', function () {
     it('same commit sequence twice should throw', function (done) {
       var store = new Store();
       store.openPartition('1').then(function (partition) {
-        var events = [new Event(uuid(), 'type1', { test: 11 })];
+        var events = [new Event(uuid(), 'type1', {test: 11})];
         var commit = new Commit(uuid(), 'master', '1', 0, events);
         var commit2 = new Commit(uuid(), 'master', '1', 0, events);
         return Promise.join(partition.append(commit), partition.append(commit2), function () {
@@ -113,7 +114,7 @@ describe('inmemory_persistence', function () {
     it('same commit twice should throw', function (done) {
       var store = new Store();
       store.openPartition('1').then(function (partition) {
-        var events = [new Event(uuid(), 'type1', { test: 11 })];
+        var events = [new Event(uuid(), 'type1', {test: 11})];
         var commit = new Commit(uuid(), 'master', '1', 0, events);
         partition.append(commit).then(function () {
           return partition.append(commit);
@@ -121,10 +122,10 @@ describe('inmemory_persistence', function () {
           .then(function () {
             done(new Error("Should have DuplicateCommitError"));
           }).catch(PersistenceDuplicateCommitError, function (err) {
-            done();
-          }).catch(function (err) {
-            done(err);
-          });
+          done();
+        }).catch(function (err) {
+          done(err);
+        });
       });
     });
   });
@@ -148,7 +149,7 @@ describe('inmemory_persistence', function () {
     it('should return previously stored snapshot', function (done) {
       var store = new Store();
       store.openPartition('1').then(function (part) {
-        part.storeSnapshot('stream1', { iAmSnapshot: true }, 10).then(function (snapshot) {
+        part.storeSnapshot('stream1', {iAmSnapshot: true}, 10).then(function (snapshot) {
           part.loadSnapshot('stream1').then(function (newSnapshot) {
             expect(newSnapshot).toEqual(snapshot);
             done();
