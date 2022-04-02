@@ -3,18 +3,24 @@
   "version": "0.4.0",
   "description": "",
   "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "directories": {
     "test": "test"
   },
   "scripts": {
-    "build": "rimraf lib && swc src --out-dir lib",
-    "build.watch": "npm run build -- --watch",
+    "build": "rimraf lib && concurrently \"npm run build.src\" \"npm run build.types\"",
+    "build.watch": "rimraf lib && concurrently \"npm run build.src.watch\" \"npm run build.types.watch\"",
+    "build.src": "swc src --out-dir lib",
+    "build.src.watch": "npm run build.src -- --watch",
+    "build.types": "tsc",
+    "build.types.watch": "npm run build.types -- --watch",
     "test": "jest",
     "test.watch": "jest --watch",
     "coverage": "jest --collectCoverage",
     "coverage-start": "jest --collectCoverage && start coverage/lcov-report/index.html",
     "lint": "eslint --env node --env mocha src test",
-    "lint.ci": "eslint --env node --env mocha -f checkstyle src test > checkstyle-result.xml || echo"
+    "lint.ci": "eslint --env node --env mocha -f checkstyle src test > checkstyle-result.xml || echo",
+    "prepare": "concurrently \"npm run build\" \"npm test\" \"npm run lint\""
   },
   "repository": {
     "type": "git",
@@ -32,15 +38,18 @@
     "@swc/cli": "^0.1.57",
     "@swc/core": "^1.2.162",
     "@swc/jest": "^0.2.20",
+    "@types/node": "^17.0.23",
     "babel-eslint": "^10.1.0",
     "chokidar": "^3.5.3",
+    "concurrently": "^7.1.0",
     "eslint": "^8.12.0",
     "eslint-config-surikat": "^2.0.1",
     "eslint-plugin-import": "^2.25.4",
     "jest": "^27.5.1",
     "prettier": "^2.6.2",
     "prettier-config-surikaterna": "^1.0.1",
-    "rimraf": "^3.0.2"
+    "rimraf": "^3.0.2",
+    "typescript": "^4.6.3"
   },
   "dependencies": {
     "bluebird": "^3.7.2",
