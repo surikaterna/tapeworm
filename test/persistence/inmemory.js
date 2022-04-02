@@ -3,8 +3,8 @@ import Promise from "bluebird";
 import Store from '../../src/persistence/inmemory/InMemoryPersistence';
 import {Commit} from '../../src/persistence/Commit';
 import Event from '../../src/Event';
-import PersistenceConcurrencyError from '../../src/persistence/ConcurrencyError';
-import PersistenceDuplicateCommitError from '../../src/persistence/DuplicateCommitError';
+import {ConcurrencyError as PersistenceConcurrencyError} from '../../src/persistence/ConcurrencyError';
+import {DuplicateCommitError as PersistenceDuplicateCommitError} from '../../src/persistence/DuplicateCommitError';
 
 describe('inmemory_persistence', function () {
   describe('#commit', function () {

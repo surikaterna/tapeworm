@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import {assign, clone, contains, find, isFunction, without} from 'lodash';
-import ConcurrencyError from '../ConcurrencyError';
-import DuplicateCommitError from '../DuplicateCommitError';
+import {ConcurrencyError} from '../ConcurrencyError';
+import {DuplicateCommitError} from '../DuplicateCommitError';
 
 class InMemoryPartition {
   constructor() {
