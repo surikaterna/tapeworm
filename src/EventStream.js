@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import {forEach} from 'lodash';
-import Commit from './persistence/commit';
+import Commit from './persistence/Commit';
 
 // writeOnly - will never read entire stream from
 class EventStream {
