@@ -1,7 +1,7 @@
 var Promise = require('bluebird');
 
 var Partition = require('./EventStorePartition');
-var InMemoryPersistenceStore = require('./persistence/inmemory/inmemory_persistence');
+var InMemoryPersistenceStore = require('./persistence/inmemory/InMemoryPersistence');
 var _PENDING = {};
 
 var EventStore = function(persistenceStore, dispatchService) {
