@@ -1,7 +1,7 @@
 import {assign, clone, contains, find, isFunction, without} from 'lodash';
 import Promise from 'bluebird';
 import ConcurrencyError from '../ConcurrencyError';
-import DuplicateCommitError from '../duplicate_commit_error';
+import DuplicateCommitError from '../DuplicateCommitError';
 
 var InMemoryPartition = function () {
   this._commits = [];

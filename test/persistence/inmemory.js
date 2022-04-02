@@ -4,7 +4,7 @@ import Store from '../../src/persistence/inmemory/inmemory_persistence';
 import Commit from '../../src/persistence/Commit';
 import Event from '../../src/Event';
 import PersistenceConcurrencyError from '../../src/persistence/ConcurrencyError';
-import PersistenceDuplicateCommitError from '../../src/persistence/duplicate_commit_error';
+import PersistenceDuplicateCommitError from '../../src/persistence/DuplicateCommitError';
 
 describe('inmemory_persistence', function () {
   describe('#commit', function () {
