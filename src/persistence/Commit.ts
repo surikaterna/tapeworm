@@ -6,6 +6,8 @@ export interface Commit<Data extends object = Record<string, unknown>, Metadata 
   streamId: string;
   commitSequence: number;
   events: Array<Event<Data, Metadata>>;
+  // Applied headers
+  [key: string]: any;
 }
 
 export class Commit<Data extends object = Record<string, unknown>, Metadata extends object = Record<string, unknown>> {

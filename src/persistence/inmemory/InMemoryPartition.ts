@@ -1,9 +1,15 @@
 import Promise from 'bluebird';
-import {assign, clone, find, includes, isFunction, without} from 'lodash';
-import {ConcurrencyError} from '../ConcurrencyError';
-import {DuplicateCommitError} from '../DuplicateCommitError';
+import { assign, clone, find, includes, isFunction, without } from 'lodash';
+import { Commit, ConcurrencyError, DuplicateCommitError, FromEventSequence, Partition, Snapshot } from '..';
+import { Callback } from '../../types';
 
-export class InMemoryPartition {
+export class InMemoryPartition<T extends object> implements Partition<T> {
+  _commits: Array<Commit>;
+  _streamIndex: Record<string, Array<Commit>>;
+  _commitIds: Array<string>;
+  _commitConcurrencyCheck: Array<string>;
+  _snapshots: Record<string, Snapshot<T>>;
+
   constructor() {
     this._commits = [];
     this._streamIndex = {};
@@ -12,11 +18,11 @@ export class InMemoryPartition {
     this._snapshots = {};
   }
 
-  _promisify(value, callback) {
+  _promisify<Value>(value: Value, callback?: Callback<Value>) {
     return Promise.resolve(value).nodeify(callback);
   }
 
-  truncateStreamFrom(streamId, commitSequence, callback) {
+  truncateStreamFrom(streamId: string, commitSequence: number, callback?: Callback<any>) {
     let commits = Array.from(this._streamIndex[streamId]);
     for (let i = 0; i < commits.length; i++) {
       const commit = commits[i];
@@ -33,8 +39,8 @@ export class InMemoryPartition {
     return this._promisify(this);
   }
 
-  applyCommitHeader(commitId, header, callback) {
-    const commit = find(this._commits, {id: commitId});
+  applyCommitHeader<Header extends object>(commitId: string, header: Header, callback?: Callback<Commit>) {
+    const commit = find(this._commits, { id: commitId });
     if (commit) {
       assign(commit, header);
     } else {
@@ -43,7 +49,7 @@ export class InMemoryPartition {
     return this._promisify(commit, callback);
   }
 
-  append(commit, callback) {
+  append(commit: Commit, callback?: Callback<Commit>) {
     commit.isDispatched = false;
     // Check for duplicates
     if (includes(this._commitIds, commit.id)) {
@@ -65,48 +71,38 @@ export class InMemoryPartition {
     return this._promisify(commit, callback);
   }
 
-  storeSnapshot(streamId, snapshot, version, callback) {
-    return this._promisify((this._snapshots[streamId] = {
-      id: streamId,
-      version: version,
-      snapshot: snapshot
-    }), callback);
+  storeSnapshot(streamId: string, snapshot: T, version: number, callback?: Callback<Snapshot<T>>) {
+    return this._promisify(
+      (this._snapshots[streamId] = {
+        id: streamId,
+        version,
+        snapshot
+      }),
+      callback
+    );
   }
 
   // Loads the latest snapshot
-  loadSnapshot(streamId, callback) {
+  loadSnapshot(streamId: string, callback?: Callback<Snapshot<T>>) {
     return this._promisify(this._snapshots[streamId], callback);
   }
 
-  markAsDispatched(commit, callback) {
+  markAsDispatched(commit: Commit, callback?: Callback<Commit>) {
     commit.isDispatched = true;
     return this._promisify(commit, callback);
   }
 
-  getUndispatched(callback) {
-    const commits = this.queryAll;
-    const undispatched = [];
-    for (let i = 0; i < commits.length; i++) {
-      if (!commits[i].isDispatched) {
-        undispatched.push(commits[i]);
-      }
-    }
-    return this._promisify(undispatched, callback);
-  }
-
-  queryAll(callback) {
+  queryAll(callback?: Callback<Array<Commit>>) {
     return this._promisify(this._commits.slice(), callback);
   }
 
-  getLatestCommit(streamId, callback) {
-    let result = this._streamIndex[streamId];
-    if (result) {
-      result = result.slice().pop();
-    }
-    return this._promisify(result, callback);
+  getLatestCommit(streamId: string, callback?: Callback<Commit | undefined>) {
+    const commits = this._streamIndex[streamId];
+    const commit = commits?.slice().pop();
+    return this._promisify(commit, callback);
   }
 
-  queryStream(streamId, fromEventSequence, callback) {
+  queryStream(streamId: string, fromEventSequence: FromEventSequence<Array<Commit>>, callback?: Callback<Array<Commit>>) {
     if (isFunction(fromEventSequence)) {
       callback = fromEventSequence;
       fromEventSequence = 0;
@@ -139,6 +135,6 @@ export class InMemoryPartition {
   }
 }
 
-function getConcurrencyKey(commit) {
+function getConcurrencyKey(commit: Commit) {
   return commit.streamId + '-' + commit.commitSequence;
 }
