@@ -1,4 +1,5 @@
 import Promise from 'bluebird';
+import { DEFAULT_PARTITION_ID } from '..';
 import { Callback } from '../../types';
 import {InMemoryPartition as Partition} from './InMemoryPartition';
 
@@ -18,7 +19,7 @@ export class InMemoryPersistenceStore<T extends object> {
   }
 
   _getPartition(partitionId?: string) {
-    const currentPartitionId = partitionId || 'master';
+    const currentPartitionId = partitionId || DEFAULT_PARTITION_ID;
     let partition = this._partitions[currentPartitionId];
     if (partition == null) {
       partition = this._partitions[currentPartitionId] = new Partition();

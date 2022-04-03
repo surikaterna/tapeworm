@@ -1,10 +1,21 @@
 import Promise from 'bluebird';
-import {forEach} from 'lodash';
-import {Commit} from './persistence/Commit';
+import { forEach } from 'lodash';
+import { Event } from './Event';
+import { Commit, DEFAULT_PARTITION_ID, Partition, StorePartition } from './persistence';
+import { Callback } from './types';
 
 // writeOnly - will never read entire stream from
-export class EventStream {
-  constructor(eventPartition, streamId, writeOnly) {
+export class EventStream<T extends object> {
+  _partition: StorePartition<T>;
+  _streamId: string;
+  _writeOnly: boolean;
+  _uncommittedEvents: Array<Event>;
+  _committedEvents: Array<Event>;
+  _version: number;
+  _isDeleted: boolean;
+  _commitSequence?: number;
+
+  constructor(eventPartition: StorePartition<T>, streamId: string, writeOnly: boolean) {
     if (streamId === undefined) {
       throw new Error('StreamId must be defined!');
     }
@@ -17,9 +28,10 @@ export class EventStream {
     this._isDeleted = false;
   }
 
-  _prepareStream(callback) {
+  _prepareStream(callback: Callback<Array<Commit>>) {
     this._committedEvents = [];
-    this._commitSequence = -1;
+    let commitSequence = -1;
+    this._commitSequence = commitSequence;
     if (this._writeOnly === true && this._partition.getLatestCommit) {
       // if stream should only be opened for appending commits, only really care about getting the correct commitSequence (from last commit)
       return this._partition
@@ -52,7 +64,8 @@ export class EventStream {
           }
           let version = 0;
           for (let i = 0; i < commits.length; i++) {
-            this._commitSequence++;
+            commitSequence++;
+            this._commitSequence = commitSequence;
             for (let j = 0; j < commits[i].events.length; j++) {
               this._version++;
               commits[i].events[j].version = version++;
@@ -68,7 +81,7 @@ export class EventStream {
     return this._version;
   }
 
-  append(event) {
+  append(event: Event) {
     this._uncommittedEvents.push(event);
   }
 
@@ -76,7 +89,7 @@ export class EventStream {
     return this._uncommittedEvents.length > 0;
   }
 
-  commit(commitId, callback) {
+  commit(commitId: string, callback?: Callback<Commit | undefined>) {
     if (this._isDeleted) {
       throw new Error('Stream is deleted, unable to commit: ' + this._uncommittedEvents.map((event) => event.type));
     }
@@ -90,15 +103,18 @@ export class EventStream {
         //rebuild local state
         const events = this._uncommittedEvents;
         this._version = events[events.length - 1].version + 1;
+        let commitSequence = this._commitSequence ?? 0;
         if (this._writeOnly === true) {
-          this._commitSequence++;
+          commitSequence++;
+          this._commitSequence = commitSequence;
           this._clearChanges();
         } else {
           for (let i = 0; i < events.length; i++) {
             this._committedEvents.push(events[i]);
           }
           this._clearChanges();
-          this._commitSequence++;
+          commitSequence++;
+          this._commitSequence = commitSequence;
           return this;
         }
       });
@@ -113,9 +129,9 @@ export class EventStream {
     this._uncommittedEvents = [];
   }
 
-  _buildCommit(commitId, events) {
-    let commitSequence = this._commitSequence;
-    const commit = new Commit(commitId, this._partition._partitionId, this._streamId, ++commitSequence, events);
+  _buildCommit(commitId: string, events: Array<Event>) {
+    let commitSequence = this._commitSequence ?? 0;
+    const commit = new Commit(commitId, this._partition._partitionId || DEFAULT_PARTITION_ID, this._streamId, ++commitSequence, events);
     let version = this._version == -1 ? 0 : this._version;
 
     forEach(events, (evt) => {

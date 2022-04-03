@@ -1,6 +1,7 @@
 import Promise from 'bluebird';
 import {EventStorePartition as Partition} from './EventStorePartition';
 import {InMemoryPersistenceStore} from './persistence/inmemory/InMemoryPersistenceStore';
+import { DEFAULT_PARTITION_ID } from './persistence';
 
 const _PENDING = {};
 
@@ -13,7 +14,7 @@ export class EventStore {
 
 	openPartition(partitionId, callback) {
 		let partition = null;
-		partitionId = partitionId || 'master';
+		partitionId = partitionId || DEFAULT_PARTITION_ID;
 		partition = this._partitions[partitionId];
 		if(!partition) {
 			this._partitions[partitionId] = _PENDING;

@@ -5,6 +5,7 @@ export interface Event<Data extends object = Record<string, unknown>, Metadata e
   timestamp: Date;
   metadata: Metadata;
   revision: string | null;
+  version: number;
 }
 
 export class Event<Data extends object = Record<string, unknown>, Metadata extends object = Record<string, unknown>> {
@@ -16,5 +17,6 @@ export class Event<Data extends object = Record<string, unknown>, Metadata exten
     this.metadata = metadata ?? {} as Metadata;
     // Filled by EventStore on append
     this.revision = null;
+    this.version = 0;
   }
 }
