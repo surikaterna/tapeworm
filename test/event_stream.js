@@ -210,5 +210,24 @@ describe('event_stream', function () {
           done(err);
         });
     });
+    it('should call commit with correlation ID', function (done) {
+      var mockPartition = {
+        called: false,
+        append: function (commit, callback) {
+          this.called = true;
+          return Promise.resolve().nodeify(callback);
+        },
+        _queryStream: function (streamId, callback) {
+          return Promise.resolve([]).nodeify(callback);
+        }
+      };
+      var stream = new EventStream(mockPartition, '11');
+      stream.append({ event: '123' });
+      const correlationId = '123456789';
+      const callback = null;
+      stream.commit(uuid(), callback, correlationId);
+      mockPartition.called.should.be.true;
+      done();
+    });
   });
 });
