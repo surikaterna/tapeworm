@@ -1,4 +1,6 @@
 {
-    
-	"extends": "airbnb-es5"
+	"extends": "airbnb-es5",
+	"env": {
+		"mocha": true
+	}
 }
