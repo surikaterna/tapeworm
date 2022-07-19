@@ -1,4 +1,3 @@
-var should = require('should');
 var Promise = require('bluebird');
 var uuid = require('uuid').v4;
 
@@ -6,7 +5,7 @@ var EventStore = require('..');
 var EventStream = require('../lib/event_stream');
 
 describe('event_stream', function () {
-  describe('#openStream', function (done) {
+  describe('#openStream', function () {
     it('should return 0 commits for new stream', function (done) {
       var es = new EventStore();
       es.openPartition('location').call('openStream', '1').then(function (stream) {
@@ -17,7 +16,7 @@ describe('event_stream', function () {
       });
     });
   });
-  describe('#commit', function (done) {
+  describe('#commit', function () {
     it('should do nothing if nothing has been appended', function (done) {
       var es = new EventStore();
       es.openPartition('location').call('openStream', '1').then(function (stream) {
@@ -188,7 +187,7 @@ describe('event_stream', function () {
 
       var es = new EventStore(null, function (commit) {
         commit.events[0].should.have.property('version');
-        if (++commitCount == 2) {
+        if (++commitCount === 2) {
           done();
         }
       });
@@ -210,23 +209,18 @@ describe('event_stream', function () {
           done(err);
         });
     });
-    it('should call commit with correlation ID', function (done) {
-      var mockPartition = {
-        called: false,
+    it('should set correlation ID on commit', function (done) {
+      const correlationId = '123456789';
+      const mockPartition = {
         append: function (commit, callback) {
-          this.called = true;
+          commit.correlationId.should.equal(correlationId);
           return Promise.resolve().nodeify(callback);
-        },
-        _queryStream: function (streamId, callback) {
-          return Promise.resolve([]).nodeify(callback);
         }
       };
-      var stream = new EventStream(mockPartition, '11');
+      const stream = new EventStream(mockPartition, '11');
       stream.append({ event: '123' });
-      const correlationId = '123456789';
       const callback = null;
       stream.commit(uuid(), callback, correlationId);
-      mockPartition.called.should.be.true;
       done();
     });
   });
