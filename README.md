@@ -55,13 +55,13 @@ npm install tapeworm
 ## In Memory
 
 ```js
-import Tapeworm from 'tapeworm';
+import EventStore from 'tapeworm';
 
-// A singleton Tapeworm event store should be instantiated somewhere
-const tapeworm = new Tapeworm();
+// A singleton Tapeworm EventStore should be instantiated somewhere
+const eventStore = new EventStore();
 
 // Opening the same partition multiple times returns the same Partition instance
-const partition = await tapeworm.openPartition('location');
+const partition = await eventStore.openPartition('location');
 
 const firstCommit = new Commit('1', 'location', '1', 0, []);
 const secondCommit = new Commit('2', 'location', '1', 1, []);
@@ -87,8 +87,8 @@ const dispatchService = (commit) => {
   // Commit dispatched from the custom store, handle it as necessary
 }
 
-const tapeworm = new Tapeworm(tapewormMdbStore, dispatchService);
-const partition = await tapeworm.openPartition('location');
+const eventStore = new EventStore(tapewormMdbStore, dispatchService);
+const partition = await eventStore.openPartition('location');
 
 const commits = [
   new Commit('1', 'location', '1', 0, []),
@@ -324,7 +324,7 @@ function dispatchService(commit, markAsDispatched) {
   markAsDispatched();
 }
 
-const eventStore = new Tapeworm(null, dispatchService);
+const eventStore = new EventStore(null, dispatchService);
 const partition = await eventStore.openPartition('location');
 
 // Will call dispatchService when the commit is processed
