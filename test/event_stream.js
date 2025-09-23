@@ -1,35 +1,41 @@
-var should = require('should');
-var Promise = require('bluebird');
-var uuid = require('uuid').v4;
+var should = require("should");
+var Promise = require("bluebird");
+var uuid = require("uuid").v4;
 
-var EventStore = require('..');
-var EventStream = require('../lib/event_stream');
+var EventStore = require("..");
+var EventStream = require("../lib/event_stream");
 
-describe('event_stream', function () {
-  describe('#openStream', function (done) {
-    it('should return 0 commits for new stream', function (done) {
+describe("event_stream", function () {
+  describe("#openStream", function (done) {
+    it("should return 0 commits for new stream", function (done) {
       var es = new EventStore();
-      es.openPartition('location').call('openStream', '1').then(function (stream) {
-        stream.getCommittedEvents().length.should.equal(0);
-        done();
-      }).catch(function (err) {
-        done(err);
-      });
+      es.openPartition("location")
+        .call("openStream", "1")
+        .then(function (stream) {
+          stream.getCommittedEvents().length.should.equal(0);
+          done();
+        })
+        .catch(function (err) {
+          done(err);
+        });
     });
   });
-  describe('#commit', function (done) {
-    it('should do nothing if nothing has been appended', function (done) {
+  describe("#commit", function (done) {
+    it("should do nothing if nothing has been appended", function (done) {
       var es = new EventStore();
-      es.openPartition('location').call('openStream', '1').then(function (stream) {
-        stream.commit(uuid());
-        stream.getCommittedEvents().length.should.equal(0);
-        done();
-      }).catch(function (err) {
-        done(err);
-      });
+      es.openPartition("location")
+        .call("openStream", "1")
+        .then(function (stream) {
+          stream.commit(uuid());
+          stream.getCommittedEvents().length.should.equal(0);
+          done();
+        })
+        .catch(function (err) {
+          done(err);
+        });
     });
 
-    it('should call commit on partition', function (done) {
+    it("should call commit on partition", function (done) {
       var mockPartition = {
         called: false,
         append: function (commit, callback) {
@@ -38,93 +44,106 @@ describe('event_stream', function () {
         },
         _queryStream: function (streamId, callback) {
           return Promise.resolve([]).nodeify(callback);
-        }
+        },
       };
-      var stream = new EventStream(mockPartition, '11');
-      stream.append({ event: '123' });
+      var stream = new EventStream(mockPartition, "11");
+      stream.append({ event: "123" });
       stream.commit(uuid());
       mockPartition.called.should.be.true;
       done();
     });
-    it('should keep track of uncommitted events', function (done) {
+    it("should keep track of uncommitted events", function (done) {
       var es = new EventStore();
-      es.openPartition('location').call('openStream', '1').then(function (stream) {
-        stream.append({ event: '123' });
-        stream.getUncommittedEvents().length.should.equal(1);
-        done();
-      }).catch(function (err) {
-        done(err);
-      });
+      es.openPartition("location")
+        .call("openStream", "1")
+        .then(function (stream) {
+          stream.append({ event: "123" });
+          stream.getUncommittedEvents().length.should.equal(1);
+          done();
+        })
+        .catch(function (err) {
+          done(err);
+        });
     });
-    it('should move uncommitted events to committed on commit', function (done) {
+    it("should move uncommitted events to committed on commit", function (done) {
       var es = new EventStore();
       var stream;
-      es.openPartition('location').call('openStream', '1').then(function (stream1) {
-        stream = stream1;
-        stream.append({ event: '123' });
-        return stream.commit(uuid());
-      })
+      es.openPartition("location")
+        .call("openStream", "1")
+        .then(function (stream1) {
+          stream = stream1;
+          stream.append({ event: "123" });
+          return stream.commit(uuid());
+        })
         .then(function () {
           stream.getUncommittedEvents().length.should.equal(0);
           stream.getCommittedEvents().length.should.equal(1);
           done();
-        }).catch(function (err) {
+        })
+        .catch(function (err) {
           done(err);
         });
     });
-    it('two events becomes one commit', function (done) {
+    it("two events becomes one commit", function (done) {
       var es = new EventStore();
       var stream;
-      es.openPartition('location').call('openStream', '1').then(function (stream1) {
-        stream = stream1;
-        stream.append({ event: '123' });
-        stream.append({ event: '999' });
-        return stream.commit(uuid());
-      })
+      es.openPartition("location")
+        .call("openStream", "1")
+        .then(function (stream1) {
+          stream = stream1;
+          stream.append({ event: "123" });
+          stream.append({ event: "999" });
+          return stream.commit(uuid());
+        })
         .then(function () {
           stream.getCommittedEvents().length.should.equal(2);
           stream._commitSequence.should.equal(0);
           done();
-        }).catch(function (err) {
+        })
+        .catch(function (err) {
           done(err);
         });
     });
-    it('two commits gets increasing commit sequence', function (done) {
+    it("two commits gets increasing commit sequence", function (done) {
       var es = new EventStore();
       var stream;
-      es.openPartition('location').call('openStream', '1').then(function (stream1) {
-        stream = stream1;
-        stream.append({ event: '123' });
-        stream.append({ event: '999' });
-        return stream.commit(uuid());
-      })
+      es.openPartition("location")
+        .call("openStream", "1")
+        .then(function (stream1) {
+          stream = stream1;
+          stream.append({ event: "123" });
+          stream.append({ event: "999" });
+          return stream.commit(uuid());
+        })
         .then(function () {
-          stream.append({ event: '666' });
-          stream.append({ event: '777' });
+          stream.append({ event: "666" });
+          stream.append({ event: "777" });
           return stream.commit(uuid());
         })
         .then(function () {
           stream.getCommittedEvents().length.should.equal(4);
           stream._commitSequence.should.equal(1);
           done();
-        }).catch(function (err) {
+        })
+        .catch(function (err) {
           done(err);
         });
     });
-    it('event stream writeOnly', function (done) {
+    it("event stream writeOnly", function (done) {
       var es = new EventStore();
       var stream;
-      es.openPartition('location').then(function (partition) {
-        partition.openStream('1', true)
+      es.openPartition("location").then(function (partition) {
+        partition
+          .openStream("1", true)
           .then(function (stream1) {
             stream = stream1;
-            stream.append({ event: '123' });
+            stream.append({ event: "123" });
             return stream.commit(uuid());
           })
           .then(function () {
             stream._commitSequence.should.equal(0);
-            stream.append({ event: '666' });
-            stream.append({ event: '777' });
+            stream.append({ event: "666" });
+            stream.append({ event: "777" });
             return stream.commit(uuid());
           })
           .then(function () {
@@ -136,42 +155,46 @@ describe('event_stream', function () {
           });
       });
     });
-    it('committed events should have increasing version', function (done) {
+    it("committed events should have increasing version", function (done) {
       var es = new EventStore();
       var stream;
-      es.openPartition('location').call('openStream', '1').then(function (stream1) {
-        stream = stream1;
-        stream.append({ event: '123' });
-        stream.append({ event: '999' });
-        return stream.commit(uuid());
-      })
+      es.openPartition("location")
+        .call("openStream", "1")
+        .then(function (stream1) {
+          stream = stream1;
+          stream.append({ event: "123" });
+          stream.append({ event: "999" });
+          return stream.commit(uuid());
+        })
         .then(function () {
-          stream.append({ event: '666' });
-          stream.append({ event: '777' });
+          stream.append({ event: "666" });
+          stream.append({ event: "777" });
           return stream.commit(uuid());
         })
         .then(function () {
           stream.getCommittedEvents()[3].version.should.equal(3);
           stream._version.should.equal(4);
           done();
-        }).catch(function (err) {
+        })
+        .catch(function (err) {
           done(err);
         });
     });
-    it('committed events should have increasing version (writeOnly)', function (done) {
+    it("committed events should have increasing version (writeOnly)", function (done) {
       var es = new EventStore();
       var stream;
-      es.openPartition('location').then(function (partition) {
-        partition.openStream('1', true)
+      es.openPartition("location").then(function (partition) {
+        partition
+          .openStream("1", true)
           .then(function (stream1) {
             stream = stream1;
-            stream.append({ event: '123' });
-            stream.append({ event: '999' });
+            stream.append({ event: "123" });
+            stream.append({ event: "999" });
             return stream.commit(uuid());
           })
           .then(function () {
-            stream.append({ event: '666' });
-            stream.append({ event: '777' });
+            stream.append({ event: "666" });
+            stream.append({ event: "777" });
             return stream.commit(uuid());
           })
           .then(function () {
@@ -183,30 +206,33 @@ describe('event_stream', function () {
           });
       });
     });
-    it('published events should have increasing version', function (done) {
+    it("published events should have increasing version", function (done) {
       var commitCount = 0;
 
       var es = new EventStore(null, function (commit) {
-        commit.events[0].should.have.property('version');
+        commit.events[0].should.have.property("version");
         if (++commitCount == 2) {
           done();
         }
       });
       var stream;
-      es.openPartition('location').call('openStream', '1').then(function (stream1) {
-        stream = stream1;
-        stream.append({ event: '123' });
-        stream.append({ event: '999' });
-        return stream.commit(uuid());
-      })
+      es.openPartition("location")
+        .call("openStream", "1")
+        .then(function (stream1) {
+          stream = stream1;
+          stream.append({ event: "123" });
+          stream.append({ event: "999" });
+          return stream.commit(uuid());
+        })
         .then(function () {
-          stream.append({ event: '666' });
-          stream.append({ event: '777' });
+          stream.append({ event: "666" });
+          stream.append({ event: "777" });
           return stream.commit(uuid());
         })
         .then(function () {
           stream.getCommittedEvents()[1].version.should.equal(1);
-        }).catch(function (err) {
+        })
+        .catch(function (err) {
           done(err);
         });
     });

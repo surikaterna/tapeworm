@@ -14,7 +14,9 @@
     "coverage-start": "istanbul cover node_modules/mocha/bin/_mocha test --recursive -- -u exports -R spec && start coverage/lcov-report/index.html",
     "check": "biome check lib test",
     "format": "biome format lib test",
-    "lint": "biome lint lib test"
+    "format:fix": "biome format --write lib test",
+    "lint": "biome lint lib test",
+    "lint:fix": "biome lint --write lib test"
   },
   "repository": {
     "type": "git",
