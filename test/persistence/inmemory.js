@@ -1,173 +1,139 @@
-var should = require("should");
-var uuid = require("uuid").v4;
-var Promise = require("bluebird");
+import Promise from "bluebird";
+import { v4 as uuid } from "uuid";
+import { describe, expect, it } from "vitest";
+import Event from "../../lib/event";
+import Commit from "../../lib/persistence/commit";
+import Store from "../../lib/persistence/inmemory/inmemory_persistence";
 
-var Store = require("../../lib/persistence/inmemory/inmemory_persistence");
-var Commit = require("../../lib/persistence/commit");
-var Event = require("../../lib/event");
-var PersistenceConcurrencyError = require("../../lib/persistence/concurrency_error");
-var PersistenceDuplicateCommitError = require("../../lib/persistence/duplicate_commit_error");
+describe("inmemory_persistence", () => {
+  describe("#commit", () => {
+    it("should accept a commit and store it", async () => {
+      const store = new Store();
+      const partition = await store.openPartition("1");
+      const events = [new Event(uuid(), "type1", { test: 11 })];
+      const commit = new Commit(uuid(), "master", "1", 0, events);
 
-describe("inmemory_persistence", function () {
-  describe("#commit", function () {
-    it("should accept a commit and store it", function (done) {
-      var store = new Store();
-      store.openPartition("1").then(function (partition) {
-        var events = [new Event(uuid(), "type1", { test: 11 })];
-        var commit = new Commit(uuid(), "master", "1", 0, events);
-        partition
-          .append(commit)
-          .then(function () {
-            return partition.queryAll();
-          })
-          .then(function (x) {
-            x.length.should.equal(1);
-            done();
-          })
-          .catch(function (err) {
-            done(err);
-          });
-      });
+      await partition.append(commit);
+      const x = await partition.queryAll();
+      expect(x).toHaveLength(1);
     });
 
-    it("commit in one stream is not visible in other", function (done) {
-      var store = new Store();
-      store.openPartition("1").then(function (partition) {
-        var events = [new Event(uuid(), "type1", { test: 11 })];
-        var commit = new Commit(uuid(), "master", "1", 0, events);
-        partition.append(commit);
+    it("commit in one stream is not visible in other", async () => {
+      const store = new Store();
+      const partition = await store.openPartition("1");
 
-        var events = [new Event(uuid(), "type2", { test: 22 })];
-        var commit = new Commit(uuid(), "master", "2", 0, events);
-        partition.append(commit);
+      let events = [new Event(uuid(), "type1", { test: 11 })];
+      let commit = new Commit(uuid(), "master", "1", 0, events);
+      partition.append(commit);
 
-        Promise.join(partition.queryStream("1"), partition.queryStream("2"), function (r1, r2) {
-          r1.length.should.equal(1);
-          r2.length.should.equal(1);
-          done();
-        }).catch(function (err) {
-          done(err);
-        });
-      });
+      events = [new Event(uuid(), "type2", { test: 22 })];
+      commit = new Commit(uuid(), "master", "2", 0, events);
+      partition.append(commit);
+
+      const [r1, r2] = await Promise.all([partition.queryStream("1"), partition.queryStream("2")]);
+
+      expect(r1).toHaveLength(1);
+      expect(r2).toHaveLength(1);
     });
 
-    it("two commits in one stream are visible", function () {
-      var store = new Store();
-      store.openPartition("1").then(function (partition) {
-        var events = [new Event(uuid(), "type1", { test: 11 })];
-        var commit = new Commit(uuid(), "master", "1", 0, events);
-        partition.append(commit);
-        var events = [new Event(uuid(), "type2", { test: 22 })];
-        var commit = new Commit(uuid(), "master", "1", 1, events);
-        partition.append(commit);
-        partition.queryAll().then(function (res) {
-          res.length.should.equal(2);
-        });
-      });
+    it("two commits in one stream are visible", async () => {
+      const store = new Store();
+      const partition = await store.openPartition("1");
+
+      let events = [new Event(uuid(), "type1", { test: 11 })];
+      let commit = new Commit(uuid(), "master", "1", 0, events);
+      partition.append(commit);
+
+      events = [new Event(uuid(), "type2", { test: 22 })];
+      commit = new Commit(uuid(), "master", "1", 1, events);
+      partition.append(commit);
+
+      const res = await partition.queryAll();
+      expect(res).toHaveLength(2);
     });
 
-    it("should skip events", function () {
-      var store = new Store();
-      store.openPartition("1").then(function (partition) {
-        var events = [new Event(uuid(), "type1", { test: 11 }), new Event(uuid(), "type1", { test: 12 })];
-        var commit = new Commit(uuid(), "master", "1", 0, events);
-        partition.append(commit);
-        var events = [new Event(uuid(), "type2", { test: 22 })];
-        var commit = new Commit(uuid(), "master", "1", 1, events);
-        partition.append(commit);
-        partition.queryStream("1", 2).then(function (res) {
-          res.length.should.equal(1);
-        });
-      });
+    it("should skip events", async () => {
+      const store = new Store();
+      const partition = await store.openPartition("1");
+
+      let events = [new Event(uuid(), "type1", { test: 11 }), new Event(uuid(), "type1", { test: 12 })];
+      let commit = new Commit(uuid(), "master", "1", 0, events);
+      partition.append(commit);
+
+      events = [new Event(uuid(), "type2", { test: 22 })];
+      commit = new Commit(uuid(), "master", "1", 1, events);
+      partition.append(commit);
+
+      const res = await partition.queryStream("1", 2);
+      expect(res).toHaveLength(1);
     });
-    it("should skip events and split commit if inbetween", function () {
-      var store = new Store();
-      store.openPartition("1").then(function (partition) {
-        var events = [new Event(uuid(), "type1", { test: 11 }), new Event(uuid(), "type1", { test: 12 })];
-        var commit = new Commit(uuid(), "master", "1", 0, events);
-        partition.append(commit);
-        var events = [new Event(uuid(), "type2", { test: 22 })];
-        var commit = new Commit(uuid(), "master", "1", 1, events);
-        partition.append(commit);
-        partition.queryStream("1", 1).then(function (res) {
-          res.length.should.equal(2);
-          res[0].events.length.should.equal(1);
-        });
-      });
+
+    it("should skip events and split commit if inbetween", async () => {
+      const store = new Store();
+      const partition = await store.openPartition("1");
+
+      let events = [new Event(uuid(), "type1", { test: 11 }), new Event(uuid(), "type1", { test: 12 })];
+      let commit = new Commit(uuid(), "master", "1", 0, events);
+      partition.append(commit);
+
+      events = [new Event(uuid(), "type2", { test: 22 })];
+      commit = new Commit(uuid(), "master", "1", 1, events);
+      partition.append(commit);
+
+      const res = await partition.queryStream("1", 1);
+      expect(res).toHaveLength(2);
+      expect(res[0].events).toHaveLength(1);
     });
   });
-  describe("#concurrency", function () {
-    it("same commit sequence twice should throw", function (done) {
-      var store = new Store();
-      store
-        .openPartition("1")
-        .then(function (partition) {
-          var events = [new Event(uuid(), "type1", { test: 11 })];
-          var commit = new Commit(uuid(), "master", "1", 0, events);
-          var commit2 = new Commit(uuid(), "master", "1", 0, events);
-          return Promise.join(partition.append(commit), partition.append(commit2), function () {
-            done(new Error("Should have thrown concurrency error"));
-          });
-        })
-        .catch(PersistenceConcurrencyError, function (err) {
-          done();
-        })
-        .catch(function (err) {
-          console.log("err" + err);
-          done(err);
-        });
+  describe("#concurrency", () => {
+    it("same commit sequence twice should throw", async () => {
+      const store = new Store();
+      const partition = await store.openPartition("1");
+
+      const events = [new Event(uuid(), "type1", { test: 11 })];
+      const commit = new Commit(uuid(), "master", "1", 0, events);
+      const commit2 = new Commit(uuid(), "master", "1", 0, events);
+
+      await expect(async () => await Promise.all(partition.append(commit), partition.append(commit2))).rejects.toThrow("Concurrency error on stream 1");
     });
   });
-  describe("#duplicateEvents", function () {
-    it("same commit twice should throw", function (done) {
-      var store = new Store();
-      store.openPartition("1").then(function (partition) {
-        var events = [new Event(uuid(), "type1", { test: 11 })];
-        var commit = new Commit(uuid(), "master", "1", 0, events);
-        partition
-          .append(commit)
-          .then(function () {
-            return partition.append(commit);
-          })
-          .then(function () {
-            done(new Error("Should have DuplicateCommitError"));
-          })
-          .catch(PersistenceDuplicateCommitError, function (err) {
-            done();
-          })
-          .catch(function (err) {
-            done(err);
-          });
-      });
+
+  describe("#duplicateEvents", () => {
+    it("same commit twice should throw", async () => {
+      const store = new Store();
+      const partition = await store.openPartition("1");
+
+      const events = [new Event(uuid(), "type1", { test: 11 })];
+      const commit = new Commit(uuid(), "master", "1", 0, events);
+
+      await partition.append(commit);
+      await expect(async () => partition.append(commit)).rejects.toThrow(`Duplicate commit of ${commit.id}`);
     });
   });
-  describe("#partition", function () {
-    it("getting the same partition twice should return same instance", function (done) {
-      var store = new Store();
-      Promise.join(store.openPartition("1"), store.openPartition("1"), function (p1, p2) {
-        p1.should.equal(p2);
-        done();
-      });
+
+  describe("#partition", () => {
+    it("getting the same partition twice should return same instance", async () => {
+      const store = new Store();
+      const [p1, p2] = await Promise.all([store.openPartition("1"), store.openPartition("1")]);
+      expect(p1).toBe(p2);
     });
-    it("not indicating partition name should give master partition", function (done) {
-      var store = new Store();
-      Promise.join(store.openPartition(), store.openPartition("master"), function (p1, p2) {
-        p1.should.equal(p2);
-        done();
-      });
+
+    it("not indicating partition name should give master partition", async () => {
+      const store = new Store();
+      const [p1, p2] = await Promise.all([store.openPartition(), store.openPartition("master")]);
+      expect(p1).toBe(p2);
     });
   });
-  describe("#storeSnapshot", function () {
-    it("should return previously stored snapshot", function (done) {
-      var store = new Store();
-      store.openPartition("1").then(function (part) {
-        part.storeSnapshot("stream1", { iAmSnapshot: true }, 10).then(function (snapshot) {
-          part.loadSnapshot("stream1").then(function (newSnapshot) {
-            newSnapshot.should.equal(snapshot);
-            done();
-          });
-        });
-      });
+
+  describe("#storeSnapshot", () => {
+    it("should return previously stored snapshot", async () => {
+      const store = new Store();
+      const part = await store.openPartition("1");
+
+      const snapshot = await part.storeSnapshot("stream1", { iAmSnapshot: true }, 10);
+      const newSnapshot = await part.loadSnapshot("stream1");
+
+      expect(newSnapshot).toBe(snapshot);
     });
   });
 });
