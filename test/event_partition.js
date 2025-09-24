@@ -1,17 +1,17 @@
-var should = require('should');
-var Promise = require('bluebird');
-var uuid = require('uuid').v4;
+var should = require("should");
+var Promise = require("bluebird");
+var uuid = require("uuid").v4;
 
-var EventStore = require('..');
+var EventStore = require("..");
 var Commit = EventStore.Commit;
 
-describe('Partition', function () {
-  describe('#append', function (done) {
-    it('should return commit if added', function (done) {
+describe("Partition", function () {
+  describe("#append", function (done) {
+    it("should return commit if added", function (done) {
       var es = new EventStore();
-      es.openPartition('location')
+      es.openPartition("location")
         .then(function (partition) {
-          partition.append(new Commit('1', 'location', '1', 0, [])).then(function (c) {
+          partition.append(new Commit("1", "location", "1", 0, [])).then(function (c) {
             c[0].events.length.should.equal(0);
             done();
           });
@@ -20,11 +20,11 @@ describe('Partition', function () {
           done(err);
         });
     });
-    it('should return after all commits are persisted', function (done) {
+    it("should return after all commits are persisted", function (done) {
       var es = new EventStore();
-      es.openPartition('location')
+      es.openPartition("location")
         .then(function (partition) {
-          return partition.append([new Commit('1', 'location', '1', 0, []), new Commit('2', 'location', '1', 1, [])]).then(function (c) {
+          return partition.append([new Commit("1", "location", "1", 0, []), new Commit("2", "location", "1", 1, [])]).then(function (c) {
             c.length.should.equal(2);
             done();
           });
@@ -34,14 +34,14 @@ describe('Partition', function () {
         });
     });
   });
-  describe('#_truncateStreamFrom', function () {
-    it('should remove all commits ', function (done) {
+  describe("#_truncateStreamFrom", function () {
+    it("should remove all commits ", function (done) {
       var es = new EventStore();
-      es.openPartition('location')
+      es.openPartition("location")
         .then(function (partition) {
-          return partition.append([new Commit('1', 'location', '1', 0, []), new Commit('2', 'location', '1', 1, [])]).then(function (c) {
-            return partition._truncateStreamFrom('1', 0).then(function () {
-              return partition.openStream('1').then(function (stream) {
+          return partition.append([new Commit("1", "location", "1", 0, []), new Commit("2", "location", "1", 1, [])]).then(function (c) {
+            return partition._truncateStreamFrom("1", 0).then(function () {
+              return partition.openStream("1").then(function (stream) {
                 stream.getVersion().should.equal(-1);
                 done();
               });
@@ -52,13 +52,13 @@ describe('Partition', function () {
           done(err);
         });
     });
-    it('should remove all commits after commitSequence', function (done) {
+    it("should remove all commits after commitSequence", function (done) {
       var es = new EventStore();
-      es.openPartition('location')
+      es.openPartition("location")
         .then(function (partition) {
-          return partition.append([new Commit('1', 'location', '1', 0, [{}]), new Commit('2', 'location', '1', 1, [{}])]).then(function (c) {
-            return partition._truncateStreamFrom('1', 1).then(function () {
-              return partition.openStream('1').then(function (stream) {
+          return partition.append([new Commit("1", "location", "1", 0, [{}]), new Commit("2", "location", "1", 1, [{}])]).then(function (c) {
+            return partition._truncateStreamFrom("1", 1).then(function () {
+              return partition.openStream("1").then(function (stream) {
                 stream.getVersion().should.equal(1);
                 done();
               });
@@ -70,13 +70,13 @@ describe('Partition', function () {
         });
     });
   });
-  describe('#_applyCommitHeader', function () {
-    it('should add to commit ', function (done) {
+  describe("#_applyCommitHeader", function () {
+    it("should add to commit ", function (done) {
       var es = new EventStore();
-      es.openPartition('location')
+      es.openPartition("location")
         .then(function (partition) {
-          var commit = new Commit('1', 'location', '1', 0, []);
-          return partition.append([commit, new Commit('2', 'location', '1', 1, [])]).then(function (c) {
+          var commit = new Commit("1", "location", "1", 0, []);
+          return partition.append([commit, new Commit("2", "location", "1", 1, [])]).then(function (c) {
             return partition._applyCommitHeader(commit.id, { authorative: true }).then(function (commit) {
               commit.authorative.should.be.ok;
               done();
@@ -87,14 +87,14 @@ describe('Partition', function () {
           done(err);
         });
     });
-    it('should throw if commit id is unknown', function (done) {
+    it("should throw if commit id is unknown", function (done) {
       var es = new EventStore();
-      es.openPartition('location')
+      es.openPartition("location")
         .then(function (partition) {
-          var commit = new Commit('1', 'location', '1', 0, []);
-          return partition.append([commit, new Commit('2', 'location', '1', 1, [])]).then(function (c) {
-            return partition._applyCommitHeader('ID MISSING', { authorative: true }).then(function (commit) {
-              done(new Error('Unreachable code'));
+          var commit = new Commit("1", "location", "1", 0, []);
+          return partition.append([commit, new Commit("2", "location", "1", 1, [])]).then(function (c) {
+            return partition._applyCommitHeader("ID MISSING", { authorative: true }).then(function (commit) {
+              done(new Error("Unreachable code"));
             });
           });
         })
@@ -103,27 +103,27 @@ describe('Partition', function () {
         });
     });
   });
-  describe('#queryStreamWithSnapshot', function () {
-    it('queryStreamWithSnapshot should return snapshot and missing commits', function (done) {
+  describe("#queryStreamWithSnapshot", function () {
+    it("queryStreamWithSnapshot should return snapshot and missing commits", function (done) {
       var es = new EventStore();
-      var streamId = '1';
+      var streamId = "1";
       var stream;
-      es.openPartition('location')
-        .call('openStream', streamId)
+      es.openPartition("location")
+        .call("openStream", streamId)
         .then(function (stream1) {
           stream = stream1;
-          stream.append({ event: '123' });
-          stream.append({ event: '999' });
+          stream.append({ event: "123" });
+          stream.append({ event: "999" });
           return stream.commit(uuid());
         })
         .then(function () {
-          stream.append({ event: '666' });
-          stream.append({ event: '777' });
+          stream.append({ event: "666" });
+          stream.append({ event: "777" });
           return stream.commit(uuid());
         })
         .then(function () {
-          es.openPartition('location').then(function (part) {
-            part.storeSnapshot(streamId, { test: 'snapshot' }, 2);
+          es.openPartition("location").then(function (part) {
+            part.storeSnapshot(streamId, { test: "snapshot" }, 2);
             part.queryStreamWithSnapshot(streamId).then(function (res) {
               res.snapshot.version.should.eql(2);
               res.commits.length.should.eql(1);
@@ -137,19 +137,19 @@ describe('Partition', function () {
           done(err);
         });
     });
-    it('queryStreamWithSnapshot should return snapshot and no commit if up to date', function (done) {
+    it("queryStreamWithSnapshot should return snapshot and no commit if up to date", function (done) {
       var es = new EventStore();
-      var streamId = '1';
-      es.openPartition('location')
-        .call('openStream', streamId)
+      var streamId = "1";
+      es.openPartition("location")
+        .call("openStream", streamId)
         .then(function (stream) {
-          stream.append({ event: '123' });
-          stream.append({ event: '999' });
+          stream.append({ event: "123" });
+          stream.append({ event: "999" });
           return stream.commit(uuid());
         })
         .then(function () {
-          es.openPartition('location').then(function (part) {
-            part.storeSnapshot(streamId, { test: 'snapshot' }, 2);
+          es.openPartition("location").then(function (part) {
+            part.storeSnapshot(streamId, { test: "snapshot" }, 2);
             part.queryStreamWithSnapshot(streamId, function (err, res) {
               res.snapshot.version.should.eql(2);
               res.commits.length.should.eql(0);
@@ -162,28 +162,28 @@ describe('Partition', function () {
         });
     });
   });
-  describe('#delete', function () {
-    it('should delete stream and all commits', function (done) {
+  describe("#delete", function () {
+    it("should delete stream and all commits", function (done) {
       var didIGetaDeleteEvent = false;
       var es = new EventStore(null, (commit) => {
-        if (commit.events[0].type === '$stream.deleted.event') {
+        if (commit.events[0].type === "$stream.deleted.event") {
           didIGetaDeleteEvent = true;
         }
       });
-      es.openPartition('location')
+      es.openPartition("location")
         .then(function (partition) {
           return partition
-            .append([new Commit('1', 'location', '1', 0, [{ type: 'dummy.event' }]), new Commit('2', 'location', '1', 1, [{ type: 'dummy2.event' }])])
+            .append([new Commit("1", "location", "1", 0, [{ type: "dummy.event" }]), new Commit("2", "location", "1", 1, [{ type: "dummy2.event" }])])
             .then(function (c) {
-              return partition.delete('1', { some: 'header-value', payload: { test: true }, type: 'fail' }).then(function () {
+              return partition.delete("1", { some: "header-value", payload: { test: true }, type: "fail" }).then(function () {
                 return partition
-                  .openStream('1')
+                  .openStream("1")
                   .then(function (stream) {
                     console.log(JSON.stringify(stream, null, 2));
-                    done(new Error('able to open deleted stream'));
+                    done(new Error("able to open deleted stream"));
                   })
                   .catch(function (error) {
-                    error.message.should.equal('Stream is deleted');
+                    error.message.should.equal("Stream is deleted");
                     didIGetaDeleteEvent.should.be.true;
                     done();
                   });
@@ -195,29 +195,29 @@ describe('Partition', function () {
         });
     });
 
-    it('should delete and placeholder commit should have an id', function (done) {
+    it("should delete and placeholder commit should have an id", function (done) {
       var didIGetaDeleteEvent = false;
       var es = new EventStore(null, (commit) => {
         console.log(commit.id);
-        if (commit.events[0].type === '$stream.deleted.event' && commit.id) {
+        if (commit.events[0].type === "$stream.deleted.event" && commit.id) {
           didIGetaDeleteEvent = true;
         }
         should(commit.id).not.be.null;
       });
-      es.openPartition('location')
+      es.openPartition("location")
         .then(function (partition) {
           return partition
-            .append([new Commit('1', 'location', '1', 0, [{ type: 'dummy.event' }]), new Commit('2', 'location', '1', 1, [{ type: 'dummy2.event' }])])
+            .append([new Commit("1", "location", "1", 0, [{ type: "dummy.event" }]), new Commit("2", "location", "1", 1, [{ type: "dummy2.event" }])])
             .then(function (c) {
-              return partition.delete('1', { some: 'header-value', payload: { test: true }, type: 'fail' }).then(function () {
+              return partition.delete("1", { some: "header-value", payload: { test: true }, type: "fail" }).then(function () {
                 return partition
-                  .openStream('1')
+                  .openStream("1")
                   .then(function (stream) {
                     console.log(JSON.stringify(stream, null, 2));
-                    done(new Error('able to open deleted stream'));
+                    done(new Error("able to open deleted stream"));
                   })
                   .catch(function (error) {
-                    error.message.should.equal('Stream is deleted');
+                    error.message.should.equal("Stream is deleted");
                     didIGetaDeleteEvent.should.be.true;
                     done();
                   });
