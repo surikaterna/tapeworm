@@ -1,15 +1,11 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "CommonJS",
-    "esModuleInterop": true,
-    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src",
     "noImplicitAny": true,
     "removeComments": true,
-    "resolveJsonModule": true,
-    "preserveConstEnums": true,
-    "sourceMap": true,
-    "outDir": "dist",
-    "forceConsistentCasingInFileNames": true
+    "preserveConstEnums": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*"]
 }

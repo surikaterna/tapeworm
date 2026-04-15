@@ -16,6 +16,7 @@
     "check": "turbo run check"
   },
   "devDependencies": {
-    "turbo": "^2.5.0"
+    "turbo": "^2.5.0",
+    "typescript": "6.0.2"
   }
 }
