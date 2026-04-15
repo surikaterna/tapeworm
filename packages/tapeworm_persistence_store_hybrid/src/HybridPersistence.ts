@@ -1,8 +1,8 @@
 import BluebirdPromise from 'bluebird';
 import HybridPartition from './HybridPartition';
-import { Commit, Snapshot } from './utils';
+import type { ICommit, ISnapshot } from 'tapeworm';
 
-export type truncateStreamFromCallback = (error: Error, result: Record<string, any>) => void;
+export type truncateStreamFromCallback = (error: Error | null, result: Record<string, any>) => void;
 type TruncateStreamFrom = (
   streamId: string,
   commitSequence: number,
@@ -10,24 +10,20 @@ type TruncateStreamFrom = (
   callback?: truncateStreamFromCallback
 ) => BluebirdPromise<void>;
 
-export type queryStreamCallback = (err: Error, steam: Commit<Record<string, any>>[]) => void;
-type QueryStream = (
-  streamId: string,
-  fromEventSequence?: number | queryStreamCallback,
-  callback?: queryStreamCallback
-) => BluebirdPromise<Commit<Record<string, any>>[]>;
+export type queryStreamCallback = (err: Error | null, steam: ICommit[]) => void;
+type QueryStream = (streamId: string, fromEventSequence?: number | queryStreamCallback, callback?: queryStreamCallback) => BluebirdPromise<ICommit[]>;
 
 export type Partition = {
   open: () => BluebirdPromise<Partition>;
-  storeSnapshot: (streamId: string, snapshot: Snapshot['snapshot'], version: number) => BluebirdPromise<void>;
-  loadSnapshot: (streamId: string, callback?: (err: Error, snapshot: Snapshot | undefined) => void) => BluebirdPromise<Snapshot | undefined>;
+  storeSnapshot: (streamId: string, snapshot: ISnapshot['snapshot'], version: number) => BluebirdPromise<void>;
+  loadSnapshot: (streamId: string, callback?: (err: Error | null, snapshot: ISnapshot | undefined) => void) => BluebirdPromise<ISnapshot | undefined>;
   queryStream: QueryStream;
-  append: (commit: Commit<Record<string, any>>) => BluebirdPromise<Commit<Record<string, any>>[]>;
+  append: (commit: ICommit) => BluebirdPromise<ICommit[]>;
   removeSnapshot: (streamId: string) => BluebirdPromise<void>;
   removeSnapshots?: (streamIds: string[]) => BluebirdPromise<void>;
   truncateStreamFrom: TruncateStreamFrom;
-  applyCommitHeader: (streamId: string, commit: Commit<Record<string, any>>, remove: any, callback: () => void) => BluebirdPromise<void>;
-  querySnapshotsOlderThanMaxDate?: (dateTime: string) => BluebirdPromise<Snapshot[]>;
+  applyCommitHeader: (streamId: string, commit: ICommit, remove: any, callback: () => void) => BluebirdPromise<void>;
+  querySnapshotsOlderThanMaxDate?: (dateTime: string) => BluebirdPromise<ISnapshot[]>;
 };
 
 export interface LoggingOptions {
@@ -73,8 +69,8 @@ class HybridPersistence {
     return this.partitions[partitionId];
   }
 
-  private setPartition(partitionId?: string, partition?: Partition) {
-    this.partitions[partitionId || DEFAULT_PARTITION] = partition;
+  private setPartition(partitionId: string, partition: Partition) {
+    this.partitions[partitionId] = partition;
     return partition;
   }
 }
