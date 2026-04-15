@@ -1,38 +1,21 @@
 {
-  "name": "tapeworm",
-  "version": "0.5.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "test": "test"
-  },
-  "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest watch",
-    "check": "biome check lib test",
-    "format": "biome format lib test",
-    "format:fix": "biome format --write lib test",
-    "lint": "biome lint lib test",
-    "lint:fix": "biome lint --write lib test"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/surikaterna/tapeworm"
-  },
-  "keywords": [
-    "event sourcing",
-    "event",
-    "store"
+  "name": "tapeworm-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Tapeworm event sourcing monorepo",
+  "workspaces": [
+    "packages/*"
   ],
-  "author": "",
-  "license": "MIT",
-  "devDependencies": {
-    "@biomejs/biome": "2.2.4",
-    "vitest": "^3.2.4"
+  "engines": {
+    "node": ">=18"
   },
-  "dependencies": {
-    "bluebird": "^2.5.2",
-    "lodash": "^4.17.21",
-    "uuid": "^8.3.2"
+  "packageManager": "npm@8.19.2",
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "check": "turbo run check"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0"
   }
 }

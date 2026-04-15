@@ -1,0 +1,45 @@
+{
+  "name": "tapeworm_persistence_store_remote",
+  "version": "1.1.6",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha test --recursive",
+    "test.watch": "mocha test --watch --recursive",
+    "coverage": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R spec",
+    "coverage-start": "istanbul cover node_modules/mocha/bin/_mocha test --recursive -- -u exports -R spec && start coverage/lcov-report/index.html",
+    "jshint": "jshint ./lib",
+    "jscs": "jscs -p google ./lib ./test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/surikaterna/tapeworm_persistence_store_remote.git"
+  },
+  "devDependencies": {
+    "istanbul": "^0.3.2",
+    "jscs": "^1.11.3",
+    "jshint": "^2.5.10",
+    "mocha": "^2.0.1",
+    "should": "^4.1.0",
+    "socket.io-mock": "^1.2.3"
+  },
+  "author": "Andreas Karlsson",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/surikaterna/tapeworm_persistence_store_remote/issues"
+  },
+  "homepage": "https://github.com/surikaterna/tapeworm_persistence_store_remote#readme",
+  "dependencies": {
+    "bluebird": "^2.9.30",
+    "lodash": "^4.17.21",
+    "slf": "^1.0.1",
+    "slf-debug": "^0.2.0",
+    "tapeworm": "*"
+  },
+  "optionalDependencies": {
+    "@surikat/job-queue": "^0.1.4"
+  }
+}

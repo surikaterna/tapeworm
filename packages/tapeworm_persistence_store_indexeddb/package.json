@@ -1,0 +1,47 @@
+{
+  "name": "tapeworm_persistence_store_indexeddb",
+  "version": "0.3.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha test --recursive",
+    "test.watch": "mocha test --watch --recursive",
+    "coverage": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive test -u exports -R spec",
+    "coverage-start": "istanbul cover node_modules/mocha/bin/_mocha test --recursive -- -u exports -R spec && start coverage/lcov-report/index.html",
+    "jshint": "jshint ./lib",
+    "mochify": "mochify --watch",
+    "jscs": "jscs -p google ./lib"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/surikaterna/tapeworm"
+  },
+  "keywords": [
+    "event sourcing",
+    "event",
+    "store"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "fake-indexeddb": "^2.0.2",
+    "istanbul": "^0.3.2",
+    "jshint": "^2.9.5",
+    "mocha": "^9.1.1",
+    "mochify": "^2.19.0",
+    "should": "^4.1.0",
+    "tapeworm": "*",
+    "slf": "^1.0.0"
+  },
+  "dependencies": {
+    "bluebird": "^2.5.2",
+    "lodash": "^4.17.21",
+    "uuid": "^8.3.2"
+  },
+  "peerDependencies": {
+    "slf": "1.x"
+  }
+}
