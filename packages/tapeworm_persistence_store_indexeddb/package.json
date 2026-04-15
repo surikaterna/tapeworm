@@ -8,7 +8,7 @@
     "test": "test"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/postbuild.js",
     "test": "vitest run"
   },
   "repository": {
