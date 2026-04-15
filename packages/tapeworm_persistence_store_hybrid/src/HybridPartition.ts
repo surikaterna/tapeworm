@@ -1,5 +1,5 @@
 import BluebirdPromise from 'bluebird';
-// @ts-ignore
+// @ts-ignore — hybrid store uses Commit as a generic type; proper typing deferred to hybrid TS conversion
 import { Commit } from 'tapeworm';
 import { LoggingOptions, Partition, queryStreamCallback, truncateStreamFromCallback } from './HybridPersistence';
 import { LoggerFactory } from 'slf';
@@ -37,9 +37,12 @@ class HybridPartition implements Partition {
       }
 
       log.info('Starting auto clean of local partition');
-      setInterval(() => {
-        this.cleanPartition();
-      }, 1000 * 60 * 30); //Clean every 30 minutes
+      setInterval(
+        () => {
+          this.cleanPartition();
+        },
+        1000 * 60 * 30
+      ); //Clean every 30 minutes
     }
   }
 

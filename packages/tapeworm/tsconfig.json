@@ -1,11 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": false,
     "outDir": "dist",
     "rootDir": ".",
-    "declaration": false
+    "declaration": true,
+    "declarationMap": true,
+    "ignoreDeprecations": "6.0",
+    "types": ["node"]
   },
-  "include": ["lib/**/*", "index.js"]
+  "include": ["lib/**/*", "index.ts"],
+  "exclude": ["test/**/*", "dist/**/*"]
 }
