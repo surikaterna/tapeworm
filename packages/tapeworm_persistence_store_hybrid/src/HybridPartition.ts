@@ -1,9 +1,7 @@
 import BluebirdPromise from 'bluebird';
-// @ts-ignore
-import { Commit } from 'tapeworm';
+import type { ICommit, ISnapshot } from 'tapeworm';
 import { LoggingOptions, Partition, queryStreamCallback, truncateStreamFromCallback } from './HybridPersistence';
 import { LoggerFactory } from 'slf';
-import { Snapshot } from './utils';
 
 const log = LoggerFactory.getLogger('tapeworm-persistence-hybrid:hybrid-partition');
 
@@ -37,9 +35,12 @@ class HybridPartition implements Partition {
       }
 
       log.info('Starting auto clean of local partition');
-      setInterval(() => {
-        this.cleanPartition();
-      }, 1000 * 60 * 30); //Clean every 30 minutes
+      setInterval(
+        () => {
+          this.cleanPartition();
+        },
+        1000 * 60 * 30
+      ); //Clean every 30 minutes
     }
   }
 
@@ -47,10 +48,10 @@ class HybridPartition implements Partition {
     log.info('Auto cleaning partition');
     const snapshotTTLDate = new Date();
     snapshotTTLDate.setMinutes(snapshotTTLDate.getMinutes() - this.snapshotLifeTime);
-    this.localPartition.querySnapshotsOlderThanMaxDate(snapshotTTLDate.toISOString()).then((snapshots) => {
+    this.localPartition.querySnapshotsOlderThanMaxDate!(snapshotTTLDate.toISOString()).then((snapshots) => {
       log.info('cleaning %s snapshots', snapshots.length);
       const snapshotIdsToRemove = snapshots.map((snapshot) => snapshot.id);
-      this.localPartition.removeSnapshots(snapshotIdsToRemove);
+      this.localPartition.removeSnapshots!(snapshotIdsToRemove);
       snapshotIdsToRemove.forEach((snapshotId) => this.localPartition.truncateStreamFrom(snapshotId, 0, true));
     });
   }
@@ -59,15 +60,15 @@ class HybridPartition implements Partition {
     return BluebirdPromise.resolve(this);
   }
 
-  append(commit: Commit<Record<string, any>>) {
+  append(commit: ICommit) {
     return this.localPartition.append(commit);
   }
 
-  storeSnapshot(streamId: string, snapshot: Snapshot, version: number) {
+  storeSnapshot(streamId: string, snapshot: ISnapshot['snapshot'], version: number) {
     return this.localPartition.storeSnapshot(streamId, snapshot, version);
   }
 
-  private checkIsSnapshotToOld(snapshot?: Snapshot) {
+  private checkIsSnapshotToOld(snapshot?: ISnapshot) {
     if (!snapshot) {
       return true;
     }
@@ -85,9 +86,9 @@ class HybridPartition implements Partition {
     return false;
   }
 
-  loadSnapshot(streamId: string, callback?: (err: Error, snapshot: Snapshot) => void) {
+  loadSnapshot(streamId: string, callback?: (err: Error | null, snapshot: ISnapshot) => void) {
     const startTime = Date.now();
-    return new BluebirdPromise<Snapshot>((resolve) => {
+    return new BluebirdPromise<ISnapshot>((resolve) => {
       this.localPartition.loadSnapshot(streamId).then((localSnapshot) => {
         const isSnapshotToOld = this.checkIsSnapshotToOld(localSnapshot);
         if (localSnapshot && !isSnapshotToOld) {
@@ -104,8 +105,8 @@ class HybridPartition implements Partition {
             if (remoteSnapshot) {
               this.localPartition.storeSnapshot(remoteSnapshot.id, remoteSnapshot.snapshot, remoteSnapshot.version);
               this.localPartition.truncateStreamFrom(remoteSnapshot.id, 0, true);
+              callback?.(null, remoteSnapshot);
             }
-            callback?.(null, remoteSnapshot);
             resolve(remoteSnapshot);
           })
           .catch((error) => {
@@ -115,7 +116,7 @@ class HybridPartition implements Partition {
     }).finally(() => {
       const endTime = Date.now();
       const queryTime = (endTime - startTime) / 1000;
-      if (this.loggingOptions.loggingEnabled && queryTime > this.loggingOptions.loadSnapshotMaxTime) {
+      if (this.loggingOptions.loggingEnabled && queryTime > this.loggingOptions.loadSnapshotMaxTime!) {
         log.warn('Loading snapshot with id %s, took %s seconds. Allowed max time is %s seconds.', streamId, queryTime, this.loggingOptions.loadSnapshotMaxTime);
       }
     });
@@ -123,7 +124,7 @@ class HybridPartition implements Partition {
 
   queryStream(streamId: string, fromEventSequence?: number | queryStreamCallback, callback?: queryStreamCallback) {
     log.debug('queryStream, streamId %s ,fromEventSequence %s', streamId, fromEventSequence);
-    return new BluebirdPromise<Commit<Record<string, any>>[]>((resolve) => {
+    return new BluebirdPromise<ICommit[]>((resolve) => {
       this.localPartition.loadSnapshot(streamId).then((localSnapshot) => {
         let currentPartition = this.localPartition;
         const isSnapshotToOld = this.checkIsSnapshotToOld(localSnapshot);
@@ -145,16 +146,11 @@ class HybridPartition implements Partition {
     return this.localPartition.removeSnapshot(streamId);
   }
 
-  truncateStreamFrom(
-    streamId: string,
-    commit: Commit<Record<string, any>>,
-    remove: boolean | truncateStreamFromCallback,
-    callback?: truncateStreamFromCallback
-  ) {
-    return this.localPartition.truncateStreamFrom(streamId, commit, remove, callback);
+  truncateStreamFrom(streamId: string, commitSequence: number, remove: boolean | truncateStreamFromCallback, callback?: truncateStreamFromCallback) {
+    return this.localPartition.truncateStreamFrom(streamId, commitSequence, remove, callback);
   }
 
-  applyCommitHeader(streamId: string, commit: Commit<Record<string, any>>, remove: any, callback: () => void) {
+  applyCommitHeader(streamId: string, commit: ICommit, remove: any, callback: () => void) {
     return this.localPartition.applyCommitHeader(streamId, commit, remove, callback);
   }
 }
