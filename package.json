@@ -13,9 +13,13 @@
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run test",
-    "check": "turbo run check"
+    "check": "turbo run check",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:publish": "changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "2.30.0",
     "turbo": "^2.5.0",
     "typescript": "6.0.2"
   }

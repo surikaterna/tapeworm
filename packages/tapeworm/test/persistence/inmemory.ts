@@ -1,9 +1,9 @@
 import Promise from "bluebird";
 import { v4 as uuid } from "uuid";
 import { describe, expect, it } from "vitest";
-import Event from "../../lib/event";
-import Commit from "../../lib/persistence/commit";
-import Store from "../../lib/persistence/inmemory/inmemory_persistence";
+import Event from "../../src/event";
+import Commit from "../../src/persistence/commit";
+import Store from "../../src/persistence/inmemory/inmemory_persistence";
 
 describe("inmemory_persistence", () => {
   describe("#commit", () => {

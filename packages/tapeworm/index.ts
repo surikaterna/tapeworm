@@ -1,4 +1,4 @@
-import EventStore from "./lib/event_store";
+import EventStore from "./src/event_store";
 
 export {
   Commit,
@@ -7,7 +7,7 @@ export {
   Event,
   EventStorePartition,
   EventStream,
-} from "./lib/event_store";
+} from "./src/event_store";
 // Re-export types for TypeScript consumers
 export type {
   DispatchHandler,
@@ -17,5 +17,5 @@ export type {
   IPersistenceProvider,
   ISnapshot,
   NodeCallback,
-} from "./lib/types";
+} from "./src/types";
 export default EventStore;

@@ -2,7 +2,7 @@ import Promise from "bluebird";
 import { v4 as uuid } from "uuid";
 import { describe, expect, it } from "vitest";
 import EventStore from "..";
-import EventStream from "../lib/event_stream";
+import EventStream from "../src/event_stream";
 
 describe("event_stream", () => {
   describe("#openStream", () => {

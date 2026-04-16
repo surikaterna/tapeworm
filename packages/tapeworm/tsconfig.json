@@ -8,6 +8,6 @@
     "ignoreDeprecations": "6.0",
     "types": ["node"]
   },
-  "include": ["lib/**/*", "index.ts"],
+  "include": ["src/**/*", "index.ts"],
   "exclude": ["test/**/*", "dist/**/*"]
 }
