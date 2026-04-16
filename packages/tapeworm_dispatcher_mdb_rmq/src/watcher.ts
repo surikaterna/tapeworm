@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import { UUID } from "mongodb";
 import type {
   ChangeStream,
   ChangeStreamInsertDocument,
@@ -93,8 +94,9 @@ export class CommitWatcher extends EventEmitter {
     lastToken: string,
     handler: CommitHandler,
   ): Promise<void> {
+    const resumeUuid = new UUID(lastToken);
     const cursor = this._collection!.find({
-      token: { $gt: lastToken },
+      token: { $gt: resumeUuid },
     }).sort({ token: 1 });
 
     const placeholder: Document = { _replayFallback: true };

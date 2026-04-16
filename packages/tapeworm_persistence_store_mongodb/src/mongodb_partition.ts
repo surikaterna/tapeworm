@@ -1,4 +1,5 @@
 import Promise from "bluebird";
+import { UUID } from "mongodb";
 import type { Collection, Db } from "mongodb";
 import { ConcurrencyError, DuplicateCommitError } from "tapeworm";
 import type { IBaseEvent, ICommit, ISnapshot, NodeCallback } from "tapeworm";
@@ -172,7 +173,7 @@ MdbPartition.prototype.append = function (
   callback?: NodeCallback<ICommit>,
 ): Promise<ICommit> {
   var self = this;
-  commit.token = uuidv7();
+  commit.token = new UUID(uuidv7());
   commit.isDispatched = false;
   commit.createDateTime = new Date();
   return new Promise<ICommit>(function (resolve, reject) {

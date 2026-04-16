@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import { UUID } from "mongodb";
 import type { Document } from "mongodb";
 import type { ICommit } from "tapeworm";
 import type { DispatcherConfig, DispatcherEvents, ResumeState } from "./types";
@@ -64,7 +65,10 @@ export class Dispatcher extends EventEmitter {
     const isReplay = "_replayFallback" in resumeToken;
     const state: ResumeState = {
       changeStreamToken: isReplay ? undefined : resumeToken,
-      lastCommitToken: (commit.token as string) ?? undefined,
+      lastCommitToken:
+        commit.token instanceof UUID
+          ? commit.token.toHexString()
+          : ((commit.token as string) ?? undefined),
       updatedAt: new Date(),
     };
 
