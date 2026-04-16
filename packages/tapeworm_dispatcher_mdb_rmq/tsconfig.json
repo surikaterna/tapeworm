@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "declaration": true,
+    "ignoreDeprecations": "6.0"
+  },
+  "include": ["lib/**/*", "bin/**/*", "index.ts"]
+}

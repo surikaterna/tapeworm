@@ -1,0 +1,26 @@
+{
+  "name": "tapeworm_dispatcher_mdb_rmq",
+  "version": "0.1.0",
+  "description": "MongoDB change stream to RabbitMQ dispatcher for tapeworm commits",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "tapeworm-dispatcher": "dist/bin/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "author": "Andreas Karlsson",
+  "license": "MIT",
+  "dependencies": {
+    "amqplib": "^0.10.8",
+    "mongodb": "^6.12.0",
+    "tapeworm": "*"
+  },
+  "devDependencies": {
+    "@types/amqplib": "0.10.8",
+    "@types/node": "25.6.0",
+    "vitest": "^3.2.4"
+  }
+}
