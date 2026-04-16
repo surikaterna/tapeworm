@@ -1,0 +1,34 @@
+{
+  "name": "tapeworm_persistence_store_remote",
+  "version": "1.1.6",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/surikaterna/tapeworm_persistence_store_remote.git"
+  },
+  "devDependencies": {
+    "@types/bluebird": "3.5.42",
+    "@types/lodash": "4.17.24",
+    "socket.io-mock": "^1.2.3",
+    "tapeworm": "*",
+    "vitest": "^3.2.4"
+  },
+  "author": "Andreas Karlsson",
+  "license": "MIT",
+  "dependencies": {
+    "bluebird": "^2.9.30",
+    "lodash": "^4.18.0",
+    "slf": "^1.0.1",
+    "slf-debug": "^0.2.0",
+    "tapeworm": "*"
+  },
+  "optionalDependencies": {
+    "@surikat/job-queue": "^0.1.4"
+  }
+}

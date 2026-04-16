@@ -1,0 +1,42 @@
+{
+  "name": "tapeworm_persistence_store_indexeddb",
+  "version": "0.3.0",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/postbuild.js",
+    "test": "vitest run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/surikaterna/tapeworm"
+  },
+  "keywords": [
+    "event sourcing",
+    "event",
+    "store"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bluebird": "3.5.42",
+    "@types/lodash": "4.17.24",
+    "@types/node": "25.6.0",
+    "fake-indexeddb": "^6.0.0",
+    "slf": "^1.0.0",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "bluebird": "^2.5.2",
+    "lodash": "^4.18.0",
+    "uuid": "^8.3.2",
+    "tapeworm": "*"
+  },
+  "peerDependencies": {
+    "slf": "1.x"
+  }
+}

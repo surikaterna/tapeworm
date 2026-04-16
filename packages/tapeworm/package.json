@@ -1,0 +1,44 @@
+{
+  "name": "tapeworm",
+  "version": "0.5.0",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/postbuild.js",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "check": "biome check src test",
+    "format": "biome format src test",
+    "format:fix": "biome format --write src test",
+    "lint": "biome lint src test",
+    "lint:fix": "biome lint --write src test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/surikaterna/tapeworm"
+  },
+  "keywords": [
+    "event sourcing",
+    "event",
+    "store"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@biomejs/biome": "2.2.4",
+    "@types/bluebird": "3.5.42",
+    "@types/lodash": "4.17.24",
+    "@types/node": "25.6.0",
+    "@types/uuid": "8.3.4",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "bluebird": "^2.5.2",
+    "lodash": "^4.18.0",
+    "uuid": "^8.3.2"
+  }
+}

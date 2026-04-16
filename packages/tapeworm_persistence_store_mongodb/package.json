@@ -1,0 +1,37 @@
+{
+  "name": "tapeworm_persistence_store_mongodb",
+  "version": "3.0.2",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/postbuild.js",
+    "test": "vitest run",
+    "test.watch": "npm run test --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/surikaterna/tapeworm_persistence_store_mongodb.git"
+  },
+  "author": "Andreas Karlsson",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bluebird": "3.5.42",
+    "@types/lodash": "4.17.24",
+    "mongodb-memory-server": "^10.4.0",
+    "vitest": "^3.2.4"
+  },
+  "bugs": {
+    "url": "https://github.com/surikaterna/tapeworm_persistence_store_mongodb/issues"
+  },
+  "homepage": "https://github.com/surikaterna/tapeworm_persistence_store_mongodb#readme",
+  "dependencies": {
+    "bluebird": "^3.7.2",
+    "lodash": "^4.18.0",
+    "mongodb": "^6.12.0",
+    "tapeworm": "*"
+  }
+}
