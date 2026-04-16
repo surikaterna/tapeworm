@@ -41,7 +41,7 @@ export class MongoResumeTokenStore implements IResumeTokenStore {
           updatedAt: state.updatedAt,
         },
       },
-      { upsert: true },
+      { upsert: true, writeConcern: { w: "majority" } },
     );
   }
 }

@@ -1,5 +1,4 @@
 import type { Db, Document } from "mongodb";
-import type { ICommit } from "tapeworm";
 import type { IResumeTokenStore } from "./resume/types";
 
 /** MongoDB connection config for the dispatcher. */
@@ -47,7 +46,7 @@ export interface DispatcherConfig {
 export interface DispatcherEvents {
   started: [];
   stopped: [];
-  dispatched: [commit: ICommit];
+  dispatched: [commit: import("tapeworm").ICommit];
   resumed: [state: ResumeState];
   fallback: [];
   error: [err: Error];

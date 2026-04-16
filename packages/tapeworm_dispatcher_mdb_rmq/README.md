@@ -65,6 +65,64 @@ npx tapeworm-dispatcher \
 | `--resume-collection` | No       | `tw_dispatcher_state` | MongoDB collection for resume tokens          |
 | `--tenant`            | No       | —                     | Tenant ID added to AMQP message headers       |
 
+## Docker
+
+### Build
+
+The Dockerfile uses the monorepo root as build context:
+
+```bash
+docker build -f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile -t tapeworm-dispatcher .
+```
+
+### Run
+
+All CLI flags can be set via environment variables:
+
+```bash
+docker run -d \
+  -e MONGODB_URI=mongodb://mongo:27017 \
+  -e DATABASE=mydb \
+  -e COLLECTION=tw_master_commits \
+  -e RABBITMQ_URI=amqp://rabbitmq:5672 \
+  -e EXCHANGE=tw.commits.exchange \
+  tapeworm-dispatcher
+```
+
+### Environment Variables
+
+| Variable            | Required | Default                 | CLI equivalent                                                                     |
+| ------------------- | -------- | ----------------------- | ---------------------------------------------------------------------------------- |
+| `MONGODB_URI`       | Yes      | —                       | `--mongodb-uri`                                                                    |
+| `DATABASE`          | Yes      | —                       | `--database`                                                                       |
+| `COLLECTION`        | Yes      | —                       | `--collection`                                                                     |
+| `RABBITMQ_URI`      | Yes      | —                       | `--rabbitmq-uri`                                                                   |
+| `EXCHANGE`          | Yes      | —                       | `--exchange`                                                                       |
+| `RESUME_COLLECTION` | No       | `tw_dispatcher_state`   | `--resume-collection`                                                              |
+| `WATCH_MODE`        | No       | `changeStream`          | `--watch-mode`                                                                     |
+| `TENANT`            | No       | —                       | `--tenant`                                                                         |
+| `DEBUG`             | No       | `tapeworm-dispatcher:*` | Controls log output (uses [debug](https://www.npmjs.com/package/debug) namespaces) |
+
+CLI arguments take precedence over environment variables.
+
+## CI/CD
+
+The root [`Jenkinsfile`](../../Jenkinsfile) provides a declarative pipeline:
+
+1. **Install** → **Build** → **Test** → **Docker Build** (all branches)
+2. **Publish** (main branch only) — npm publish via changesets + Docker push
+
+### Operator setup
+
+Configure these in your Jenkins instance (not in the repo):
+
+| Item                 | Jenkins type      | ID             | Purpose                 |
+| -------------------- | ----------------- | -------------- | ----------------------- |
+| npm auth token       | Secret text       | `npm-token`    | Publish packages to npm |
+| Docker registry auth | Username/password | `docker-creds` | Push images to registry |
+
+Set `DOCKER_REGISTRY` in the Publish stage environment to your registry hostname (e.g. `ghcr.io/yourorg`, `docker.io/youruser`).
+
 ## Library Usage
 
 ```typescript
@@ -256,6 +314,6 @@ This ensures at-least-once delivery. If the process crashes between publish and 
 
 ## Requirements
 
-- Node.js >= 18
+- Node.js >= 20
 - MongoDB replica set (required for both change streams and oplog tailing)
 - RabbitMQ broker

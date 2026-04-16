@@ -1,8 +1,19 @@
 #!/usr/bin/env node
 
+import debug from "debug";
+import { LoggerFactory } from "slf";
+import slfDebug from "slf-debug";
+
+// Wire slf-debug as the logging backend
+// Use DEBUG env var to control output (e.g. DEBUG=tapeworm-dispatcher:*)
+debug.enable(process.env.DEBUG || "tapeworm-dispatcher:*");
+LoggerFactory.setFactory(slfDebug);
+
 import { MongoClient } from "mongodb";
 import { Dispatcher } from "../src/dispatcher";
 import { MongoResumeTokenStore } from "../src/resume/mongodb-store";
+
+const LOG = LoggerFactory.getLogger("tapeworm-dispatcher:cli");
 
 interface CliArgs {
   mongodbUri: string;
@@ -25,6 +36,23 @@ function parseArgs(argv: string[]): CliArgs {
     }
   }
 
+  // ENV var fallbacks: CLI args take precedence over ENV vars
+  const envFallbacks: Record<string, string | undefined> = {
+    mongodbUri: process.env.MONGODB_URI,
+    database: process.env.DATABASE,
+    collection: process.env.COLLECTION,
+    rabbitmqUri: process.env.RABBITMQ_URI,
+    exchange: process.env.EXCHANGE,
+    resumeCollection: process.env.RESUME_COLLECTION,
+    watchMode: process.env.WATCH_MODE,
+    tenant: process.env.TENANT,
+  };
+  for (const [key, envVal] of Object.entries(envFallbacks)) {
+    if (!args[key] && envVal) {
+      args[key] = envVal;
+    }
+  }
+
   const required = [
     "mongodbUri",
     "database",
@@ -39,14 +67,17 @@ function parseArgs(argv: string[]): CliArgs {
       );
       console.error(
         "\nUsage: tapeworm-dispatcher \\\n" +
-          "  --mongodb-uri <uri> \\\n" +
-          "  --database <name> \\\n" +
-          "  --collection <commits-collection> \\\n" +
-          "  --rabbitmq-uri <amqp-uri> \\\n" +
-          "  --exchange <exchange-name> \\\n" +
-          "  [--resume-collection <name>] \\\n" +
-          "  [--watch-mode <changeStream|oplog>] \\\n" +
-          "  [--tenant <tenant-id>]",
+          "  --mongodb-uri <uri>       (env: MONGODB_URI) \\\n" +
+          "  --database <name>         (env: DATABASE) \\\n" +
+          "  --collection <name>       (env: COLLECTION) \\\n" +
+          "  --rabbitmq-uri <amqp-uri> (env: RABBITMQ_URI) \\\n" +
+          "  --exchange <name>         (env: EXCHANGE) \\\n" +
+          "  [--resume-collection <name>]  (env: RESUME_COLLECTION) \\\n" +
+          "  [--watch-mode <changeStream|oplog>]  (env: WATCH_MODE) \\\n" +
+          "  [--tenant <tenant-id>]    (env: TENANT)\n\n" +
+          "Environment-only:\n" +
+          "  DEBUG=tapeworm-dispatcher:*  (controls log output)\n\n" +
+          "CLI arguments take precedence over environment variables.",
       );
       process.exit(1);
     }
@@ -98,39 +129,74 @@ async function main(): Promise<void> {
   });
 
   dispatcher.on("started", () => {
-    console.log(
-      `Dispatcher started [${args.watchMode}] — watching ${args.collection}`,
+    LOG.info(
+      "dispatcher started watchMode=%s collection=%s",
+      args.watchMode,
+      args.collection,
     );
   });
   dispatcher.on("dispatched", (commit) => {
-    console.log(`Dispatched commit ${commit.id} (stream: ${commit.streamId})`);
-  });
-  dispatcher.on("resumed", (state) => {
-    console.log(
-      `Resumed from token (last commit: ${state.lastCommitToken ?? "none"})`,
+    LOG.debug(
+      "commit dispatched commitId=%s streamId=%s",
+      commit.id,
+      commit.streamId,
     );
   });
+  dispatcher.on("resumed", (state) => {
+    LOG.info("resumed from token %s", state.lastCommitToken ?? "none");
+  });
   dispatcher.on("fallback", () => {
-    console.warn("Change stream token expired — falling back to .token cursor");
+    LOG.warn("change stream token expired, falling back to .token cursor");
   });
   dispatcher.on("error", (err) => {
-    console.error("Dispatcher error:", err.message);
+    LOG.error("dispatcher error: %s", err.message);
   });
   dispatcher.on("fatal", (err) => {
-    console.error("Fatal dispatcher error:", err.message);
+    LOG.error("fatal dispatcher error: %s", err.message);
     process.exit(1);
   });
 
-  const shutdown = async () => {
-    console.log("\nShutting down...");
-    await dispatcher.stop();
-    await client.close();
-    console.log("Shutdown complete.");
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) {
+      LOG.warn("forced exit signal=%s", signal);
+      process.exit(1);
+    }
+    shuttingDown = true;
+    LOG.info("shutting down signal=%s", signal);
+
+    const forceExitTimer = setTimeout(() => {
+      LOG.error("shutdown timed out, forcing exit");
+      process.exit(1);
+    }, 10000);
+    forceExitTimer.unref();
+
+    try {
+      await dispatcher.stop();
+    } catch (err: any) {
+      LOG.error("error during dispatcher stop: %s", err.message);
+    }
+    try {
+      await client.close();
+    } catch (err: any) {
+      LOG.error("error during mongodb close: %s", err.message);
+    }
+
+    LOG.info("shutdown complete");
     process.exit(0);
   };
 
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+  process.on("uncaughtException", (err) => {
+    LOG.error("uncaught exception: %s stack=%s", err.message, err.stack);
+    process.exit(1);
+  });
+  process.on("unhandledRejection", (reason) => {
+    LOG.error("unhandled rejection: %s", String(reason));
+    process.exit(1);
+  });
 
   await dispatcher.start();
 }

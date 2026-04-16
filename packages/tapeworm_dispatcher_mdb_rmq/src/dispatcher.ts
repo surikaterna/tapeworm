@@ -2,11 +2,14 @@ import { EventEmitter } from "events";
 import { UUID } from "mongodb";
 import type { Document } from "mongodb";
 import type { ICommit } from "tapeworm";
+import { LoggerFactory } from "slf";
 import type { DispatcherConfig, DispatcherEvents, ResumeState } from "./types";
 import { ChangeStreamWatcher } from "./watcher";
 import type { ICommitWatcher } from "./watcher";
 import { OplogWatcher } from "./oplog-watcher";
 import { CommitPublisher } from "./publisher";
+
+const LOG = LoggerFactory.getLogger("tapeworm-dispatcher");
 
 /**
  * Dispatcher: tails a MongoDB commits collection and publishes each
@@ -25,9 +28,18 @@ export class Dispatcher extends EventEmitter {
   private readonly _watcher: ICommitWatcher;
   private readonly _publisher: CommitPublisher;
 
+  private _lastFailedCommitId: string | null = null;
+  private _consecutiveFailures = 0;
+  private static readonly MAX_COMMIT_RETRIES = 3;
+
+  private _heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private _dispatchCount = 0;
+  private _startedAt: Date | null = null;
+
   constructor(config: DispatcherConfig) {
     super();
     this._config = config;
+
     this._watcher =
       config.watchMode === "oplog"
         ? new OplogWatcher(config.mongodb)
@@ -35,6 +47,8 @@ export class Dispatcher extends EventEmitter {
     this._publisher = new CommitPublisher(config.rabbitmq, config.tenant);
 
     this._watcher.on("fallback", () => this.emit("fallback"));
+    this._watcher.on("error", (err) => this.emit("error", err));
+    this._watcher.on("fatal", (err) => this.emit("fatal", err));
   }
 
   /**
@@ -46,6 +60,7 @@ export class Dispatcher extends EventEmitter {
    * Note: start() is long-running — blocks until stop() is called or stream ends.
    */
   async start(): Promise<void> {
+    LOG.info("starting dispatcher");
     await this._watcher.connect();
     await this._publisher.connect();
 
@@ -55,6 +70,17 @@ export class Dispatcher extends EventEmitter {
     }
 
     this.emit("started");
+
+    this._startedAt = new Date();
+    this._dispatchCount = 0;
+    this._heartbeatTimer = setInterval(() => {
+      LOG.info(
+        "heartbeat dispatched=%d uptime=%ds",
+        this._dispatchCount,
+        Math.floor((Date.now() - this._startedAt!.getTime()) / 1000),
+      );
+    }, 60000);
+    this._heartbeatTimer.unref();
 
     await this._watcher.start(resumeState, this._handleCommit.bind(this));
   }
@@ -68,7 +94,37 @@ export class Dispatcher extends EventEmitter {
     commit: ICommit,
     resumeToken: Document,
   ): Promise<void> {
-    await this._publisher.publish(commit, this._config.mongodb.collection);
+    try {
+      await this._publisher.publish(commit, this._config.mongodb.collection);
+    } catch (err: any) {
+      if (commit.id === this._lastFailedCommitId) {
+        this._consecutiveFailures++;
+      } else {
+        this._lastFailedCommitId = commit.id;
+        this._consecutiveFailures = 1;
+      }
+
+      if (this._consecutiveFailures >= Dispatcher.MAX_COMMIT_RETRIES) {
+        LOG.error(
+          "skipping poison commit commitId=%s streamId=%s failures=%d: %s",
+          commit.id,
+          commit.streamId,
+          this._consecutiveFailures,
+          err.message,
+        );
+        this.emit(
+          "error",
+          new Error(`skipped poison commit ${commit.id}: ${err.message}`),
+        );
+        this._lastFailedCommitId = null;
+        this._consecutiveFailures = 0;
+      } else {
+        throw err;
+      }
+    }
+
+    this._lastFailedCommitId = null;
+    this._consecutiveFailures = 0;
 
     const isReplay = "_replayFallback" in resumeToken;
     const state: ResumeState = {
@@ -81,7 +137,9 @@ export class Dispatcher extends EventEmitter {
     };
 
     await this._config.resumeTokenStore.save(state);
+    LOG.debug("commit dispatched token=%s", String(commit.token));
     this.emit("dispatched", commit);
+    this._dispatchCount++;
   }
 
   /**
@@ -89,6 +147,11 @@ export class Dispatcher extends EventEmitter {
    * then close RabbitMQ connection.
    */
   async stop(): Promise<void> {
+    LOG.info("stopping dispatcher");
+    if (this._heartbeatTimer) {
+      clearInterval(this._heartbeatTimer);
+      this._heartbeatTimer = null;
+    }
     await this._watcher.stop();
     await this._publisher.close();
     this.emit("stopped");
