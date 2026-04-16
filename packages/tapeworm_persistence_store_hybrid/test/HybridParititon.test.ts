@@ -4,7 +4,7 @@ import HybridPersistence, { Partition, Persistence } from './../src/HybridPersis
 require('fake-indexeddb/auto'); // Sets up indexDB in global scope
 import EventStore, { Commit, EventStorePartition } from 'tapeworm';
 // @ts-ignore
-import IndexDBPersistence from 'tapeworm_persistence_store_indexeddb/lib/idb_persistence';
+import IndexDBPersistence from 'tapeworm_persistence_store_indexeddb/src/idb_persistence';
 import { Commit as CommitType } from '../src/utils';
 import { changedSnapshotStoredTime } from './helpers/testUtils';
 

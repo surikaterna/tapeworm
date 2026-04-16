@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import Tapeworm, { Commit } from "tapeworm";
-import { EventStreamSynchronizer } from "../lib/client";
+import { EventStreamSynchronizer } from "../src/client";
 
 describe("EventStreamSynchronizer", function () {
   var part: ReturnType<typeof Tapeworm.prototype.openPartition> extends Promise<

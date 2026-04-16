@@ -1,1 +1,1 @@
-export { Client, Server } from "./lib";
+export { Client, Server } from "./src";

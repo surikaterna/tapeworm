@@ -11,11 +11,11 @@
     "build": "tsc && node scripts/postbuild.js",
     "test": "vitest run",
     "test:watch": "vitest watch",
-    "check": "biome check lib test",
-    "format": "biome format lib test",
-    "format:fix": "biome format --write lib test",
-    "lint": "biome lint lib test",
-    "lint:fix": "biome lint --write lib test"
+    "check": "biome check src test",
+    "format": "biome format src test",
+    "format:fix": "biome format --write src test",
+    "lint": "biome lint src test",
+    "lint:fix": "biome lint --write src test"
   },
   "repository": {
     "type": "git",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { EventStreamSubscriber } from "../lib/client";
+import { EventStreamSubscriber } from "../src/client";
 
 function getSubscriber() {
   var client = {

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   getLastAuthorizedCommitSequence,
   getLastCommitSequence,
-} from "../lib/client/util";
+} from "../src/client/util";
 import type { ICommit } from "tapeworm";
 
 type TestCommit = Partial<ICommit> & {

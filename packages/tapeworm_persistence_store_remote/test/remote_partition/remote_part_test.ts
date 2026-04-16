@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import Tapeworm, { Commit } from "tapeworm";
 import SocketMock from "socket.io-mock";
-import TapewormSyncServer from "../../lib/server";
-import { RemotePersistence, RemoteClient } from "../../lib/client";
+import TapewormSyncServer from "../../src/server";
+import { RemotePersistence, RemoteClient } from "../../src/client";
 
 var autobus = {
   join: function () {

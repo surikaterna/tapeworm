@@ -7,5 +7,5 @@
     "ignoreDeprecations": "6.0",
     "types": ["node"]
   },
-  "include": ["lib/**/*", "index.ts", "types/**/*"]
+  "include": ["src/**/*", "index.ts", "types/**/*"]
 }
