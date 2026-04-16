@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 import { MongoClient } from "mongodb";
-import { Dispatcher } from "../lib/dispatcher";
-import { MongoResumeTokenStore } from "../lib/resume/mongodb-store";
+import { Dispatcher } from "../src/dispatcher";
+import { MongoResumeTokenStore } from "../src/resume/mongodb-store";
 
 interface CliArgs {
   mongodbUri: string;

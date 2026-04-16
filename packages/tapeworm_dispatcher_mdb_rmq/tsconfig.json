@@ -6,5 +6,5 @@
     "declaration": true,
     "ignoreDeprecations": "6.0"
   },
-  "include": ["lib/**/*", "bin/**/*", "index.ts"]
+  "include": ["src/**/*", "bin/**/*", "index.ts"]
 }
