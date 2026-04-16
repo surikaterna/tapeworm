@@ -3,29 +3,37 @@ import { UUID } from "mongodb";
 import type { Document } from "mongodb";
 import type { ICommit } from "tapeworm";
 import type { DispatcherConfig, DispatcherEvents, ResumeState } from "./types";
-import { CommitWatcher } from "./watcher";
+import { ChangeStreamWatcher } from "./watcher";
+import type { ICommitWatcher } from "./watcher";
+import { OplogWatcher } from "./oplog-watcher";
 import { CommitPublisher } from "./publisher";
 
 /**
- * Dispatcher: tails a MongoDB commits collection via change stream
- * and publishes each new commit to a RabbitMQ fanout exchange.
+ * Dispatcher: tails a MongoDB commits collection and publishes each
+ * new commit to a RabbitMQ fanout exchange.
  *
- * Provides at-least-once delivery with two-level resume:
- *   1. MongoDB change stream resume token (primary)
+ * Supports two watch modes:
+ *   - "changeStream" (default): majority-safe, uses MongoDB change streams
+ *   - "oplog": lowest latency, tails local.oplog.rs directly
+ *
+ * Both modes provide at-least-once delivery with two-level resume:
+ *   1. Primary token (change stream resume token or oplog Timestamp)
  *   2. UUID v7 .token field on commits (fallback when oplog expires)
  */
 export class Dispatcher extends EventEmitter {
   private readonly _config: DispatcherConfig;
-  private readonly _watcher: CommitWatcher;
+  private readonly _watcher: ICommitWatcher;
   private readonly _publisher: CommitPublisher;
 
   constructor(config: DispatcherConfig) {
     super();
     this._config = config;
-    this._watcher = new CommitWatcher(config.mongodb);
+    this._watcher =
+      config.watchMode === "oplog"
+        ? new OplogWatcher(config.mongodb)
+        : new ChangeStreamWatcher(config.mongodb);
     this._publisher = new CommitPublisher(config.rabbitmq, config.tenant);
 
-    // Forward watcher fallback events
     this._watcher.on("fallback", () => this.emit("fallback"));
   }
 
@@ -33,7 +41,7 @@ export class Dispatcher extends EventEmitter {
    * Start the dispatcher:
    * 1. Connect to MongoDB and RabbitMQ
    * 2. Load resume state
-   * 3. Begin tailing the change stream
+   * 3. Begin tailing (change stream or oplog based on config)
    *
    * Note: start() is long-running — blocks until stop() is called or stream ends.
    */
@@ -77,8 +85,8 @@ export class Dispatcher extends EventEmitter {
   }
 
   /**
-   * Graceful shutdown: close the change stream, drain in-flight publishes,
-   * then close RabbitMQ and MongoDB connections.
+   * Graceful shutdown: close the watcher, drain in-flight publishes,
+   * then close RabbitMQ connection.
    */
   async stop(): Promise<void> {
     await this._watcher.stop();

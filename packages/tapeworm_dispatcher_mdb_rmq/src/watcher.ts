@@ -9,13 +9,30 @@ import type {
 import type { ICommit } from "tapeworm";
 import type { MongoConfig, ResumeState } from "./types";
 
-type CommitHandler = (commit: ICommit, resumeToken: Document) => Promise<void>;
+export type CommitHandler = (
+  commit: ICommit,
+  resumeToken: Document,
+) => Promise<void>;
 
 /**
- * Tails a MongoDB commits collection via change stream.
+ * Common contract for commit watchers.
+ * Implemented by ChangeStreamWatcher (majority-safe) and OplogWatcher (lowest latency).
+ */
+export interface ICommitWatcher extends EventEmitter {
+  connect(): Promise<void>;
+  start(resumeState: ResumeState | null, handler: CommitHandler): Promise<void>;
+  stop(): Promise<void>;
+}
+
+/**
+ * Watches a commits collection via MongoDB change stream.
+ * Waits for majority-committed writes (replication-safe).
  * Falls back to querying by .token field when the oplog window expires.
  */
-export class CommitWatcher extends EventEmitter {
+export class ChangeStreamWatcher
+  extends EventEmitter
+  implements ICommitWatcher
+{
   private readonly _config: MongoConfig;
   private _collection: Collection | null = null;
   private _changeStream: ChangeStream | null = null;
@@ -30,10 +47,6 @@ export class CommitWatcher extends EventEmitter {
     this._collection = this._config.db.collection(this._config.collection);
   }
 
-  /**
-   * Start watching for new commits.
-   * Blocks until stop() is called or the stream ends.
-   */
   async start(
     resumeState: ResumeState | null,
     handler: CommitHandler,
@@ -45,12 +58,10 @@ export class CommitWatcher extends EventEmitter {
         await this._watchChangeStream(resumeState.changeStreamToken, handler);
         return;
       } catch {
-        // Token expired — fall back to .token cursor
         this.emit("fallback");
       }
     }
 
-    // Fallback: replay from lastCommitToken, then switch to change stream
     if (resumeState?.lastCommitToken) {
       await this._replayFromToken(resumeState.lastCommitToken, handler);
     }

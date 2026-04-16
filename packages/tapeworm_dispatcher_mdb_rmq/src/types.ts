@@ -14,6 +14,18 @@ export interface RabbitConfig {
   exchange: string;
 }
 
+/**
+ * Watch strategy for observing new commits in MongoDB.
+ *
+ * - "changeStream" (default): Uses MongoDB change streams. Waits for
+ *   majority-committed writes. Replication-safe, no rollback risk.
+ *
+ * - "oplog": Tails local.oplog.rs directly. Sees writes immediately
+ *   on the primary. Lowest latency, but writes may be rolled back if
+ *   the primary loses election before replication completes.
+ */
+export type WatchMode = "changeStream" | "oplog";
+
 /** Persisted resume state for at-least-once delivery. */
 export interface ResumeState {
   changeStreamToken?: Document;
@@ -27,6 +39,8 @@ export interface DispatcherConfig {
   rabbitmq: RabbitConfig;
   resumeTokenStore: IResumeTokenStore;
   tenant?: string;
+  /** Watch strategy — defaults to "changeStream" if omitted. */
+  watchMode?: WatchMode;
 }
 
 /** Typed event map for the Dispatcher EventEmitter. */

@@ -12,6 +12,7 @@ interface CliArgs {
   exchange: string;
   resumeCollection: string;
   tenant?: string;
+  watchMode: "changeStream" | "oplog";
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -44,10 +45,21 @@ function parseArgs(argv: string[]): CliArgs {
           "  --rabbitmq-uri <amqp-uri> \\\n" +
           "  --exchange <exchange-name> \\\n" +
           "  [--resume-collection <name>] \\\n" +
+          "  [--watch-mode <changeStream|oplog>] \\\n" +
           "  [--tenant <tenant-id>]",
       );
       process.exit(1);
     }
+  }
+
+  const watchMode = (args.watchMode || "changeStream") as
+    | "changeStream"
+    | "oplog";
+  if (watchMode !== "changeStream" && watchMode !== "oplog") {
+    console.error(
+      `Invalid --watch-mode: ${watchMode}. Must be "changeStream" or "oplog".`,
+    );
+    process.exit(1);
   }
 
   return {
@@ -58,6 +70,7 @@ function parseArgs(argv: string[]): CliArgs {
     exchange: args.exchange,
     resumeCollection: args.resumeCollection || "tw_dispatcher_state",
     tenant: args.tenant,
+    watchMode,
   };
 }
 
@@ -81,10 +94,13 @@ async function main(): Promise<void> {
     },
     resumeTokenStore,
     tenant: args.tenant,
+    watchMode: args.watchMode,
   });
 
   dispatcher.on("started", () => {
-    console.log(`Dispatcher started — watching ${args.collection}`);
+    console.log(
+      `Dispatcher started [${args.watchMode}] — watching ${args.collection}`,
+    );
   });
   dispatcher.on("dispatched", (commit) => {
     console.log(`Dispatched commit ${commit.id} (stream: ${commit.streamId})`);
