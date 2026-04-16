@@ -3,6 +3,7 @@ import type { Collection, Db } from "mongodb";
 import { ConcurrencyError, DuplicateCommitError } from "tapeworm";
 import type { IBaseEvent, ICommit, ISnapshot, NodeCallback } from "tapeworm";
 import { isNil, get, isFunction } from "lodash";
+import { v7 as uuidv7 } from "uuid";
 
 var CONCURRENCY_EXCEPTION_CODE = 11000;
 
@@ -90,6 +91,7 @@ MdbPartition.prototype.open = function (
       .then(() =>
         self._commits.createIndex({ createDateTime: 1 }, { unique: false }),
       )
+      .then(() => self._commits.createIndex({ token: 1 }, { unique: false }))
       .then(() => resolve(self))
       .catch(reject);
   });
@@ -170,6 +172,7 @@ MdbPartition.prototype.append = function (
   callback?: NodeCallback<ICommit>,
 ): Promise<ICommit> {
   var self = this;
+  commit.token = uuidv7();
   commit.isDispatched = false;
   commit.createDateTime = new Date();
   return new Promise<ICommit>(function (resolve, reject) {
