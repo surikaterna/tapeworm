@@ -9,7 +9,7 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "npm@8.19.2",
+  "packageManager": "npm@11.12.1",
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run test",
