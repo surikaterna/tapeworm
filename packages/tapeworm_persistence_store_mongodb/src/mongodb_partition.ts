@@ -92,7 +92,12 @@ MdbPartition.prototype.open = function (
       .then(() =>
         self._commits.createIndex({ createDateTime: 1 }, { unique: false }),
       )
-      .then(() => self._commits.createIndex({ token: 1 }, { unique: false }))
+      .then(() =>
+        self._commits.createIndex(
+          { token: 1 },
+          { unique: false, sparse: true },
+        ),
+      )
       .then(() => resolve(self))
       .catch(reject);
   });
