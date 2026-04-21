@@ -13,7 +13,7 @@ const LOG = LoggerFactory.getLogger("tapeworm-dispatcher");
 
 /**
  * Dispatcher: tails a MongoDB commits collection and publishes each
- * new commit to a RabbitMQ fanout exchange.
+ * new commit to a RabbitMQ headers exchange.
  *
  * Supports two watch modes:
  *   - "changeStream" (default): majority-safe, uses MongoDB change streams

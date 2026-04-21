@@ -2,7 +2,7 @@
 
 MongoDB-to-RabbitMQ commit dispatcher for [tapeworm](../tapeworm) event stores.
 
-Watches a tapeworm commits collection for new inserts and publishes each commit to a RabbitMQ fanout exchange with **at-least-once delivery** semantics.
+Watches a tapeworm commits collection for new inserts and publishes each commit to a RabbitMQ headers exchange with **at-least-once delivery** semantics.
 
 ## Features
 
@@ -300,7 +300,7 @@ This ensures at-least-once delivery. If the process crashes between publish and 
 | `Dispatcher`            | Class     | Main orchestrator                      |
 | `ChangeStreamWatcher`   | Class     | Change stream watcher                  |
 | `OplogWatcher`          | Class     | Direct oplog watcher                   |
-| `CommitPublisher`       | Class     | RabbitMQ fanout publisher              |
+| `CommitPublisher`       | Class     | RabbitMQ headers publisher             |
 | `MongoResumeTokenStore` | Class     | MongoDB resume token store             |
 | `ICommitWatcher`        | Interface | Watcher contract                       |
 | `IResumeTokenStore`     | Interface | Resume store contract                  |

@@ -6,7 +6,7 @@ import type { RabbitConfig } from "./types";
 const LOG = LoggerFactory.getLogger("tapeworm-dispatcher:publisher");
 
 /**
- * Publishes commits to a RabbitMQ fanout exchange with publisher confirms.
+ * Publishes commits to a RabbitMQ headers exchange with publisher confirms.
  * Each publish() call waits for broker acknowledgement before resolving.
  * Includes connection resilience with heartbeat, reconnect, and publish retry.
  */
@@ -25,7 +25,7 @@ export class CommitPublisher {
   }
 
   /**
-   * Connect to RabbitMQ, create a confirm channel, and assert the fanout exchange.
+   * Connect to RabbitMQ, create a confirm channel, and assert the headers exchange.
    */
   async connect(): Promise<void> {
     LOG.info("connecting to %s", this._config.uri);
@@ -105,7 +105,7 @@ export class CommitPublisher {
       LOG.warn("channel closed");
     });
 
-    await this._channel.assertExchange(this._config.exchange, "fanout", {
+    await this._channel.assertExchange(this._config.exchange, "headers", {
       durable: true,
     });
 
@@ -146,7 +146,7 @@ export class CommitPublisher {
     this._reconnecting = false;
   }
 
-  /** Publish a single commit to the fanout exchange with publisher confirms. */
+  /** Publish a single commit to the headers exchange with publisher confirms. */
   private async _publishOnce(
     commit: ICommit,
     collectionName: string,
@@ -171,7 +171,7 @@ export class CommitPublisher {
     const publishPromise = new Promise<void>((resolve, reject) => {
       this._channel!.publish(
         this._config.exchange,
-        "", // fanout ignores routing key
+        "", // headers exchange ignores routing key
         body,
         {
           contentType: "application/json",
@@ -187,14 +187,36 @@ export class CommitPublisher {
       );
     });
 
+    let timedOut = false;
+    let timer: NodeJS.Timeout;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      const timer = setTimeout(() => {
+      timer = setTimeout(() => {
+        timedOut = true;
         reject(new Error("publish confirm timeout (30s)"));
       }, 30000);
       timer.unref();
     });
 
-    await Promise.race([publishPromise, timeoutPromise]);
+    try {
+      await Promise.race([publishPromise, timeoutPromise]);
+      clearTimeout(timer!);
+    } catch (err) {
+      clearTimeout(timer!);
+      if (timedOut) {
+        // Channel state is uncertain — close and reconnect to prevent duplicates
+        LOG.warn(
+          "publish confirm timed out, closing channel to prevent duplicates",
+        );
+        try {
+          await this._channel?.close();
+        } catch {
+          /* ignore */
+        }
+        this._connected = false;
+        this._channel = null;
+      }
+      throw err;
+    }
   }
 
   /** Wait for an active connection, with timeout. */

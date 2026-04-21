@@ -65,6 +65,9 @@ export class ChangeStreamWatcher
     handler: CommitHandler,
   ): Promise<void> {
     this._stopped = false;
+    if (!this._collection) {
+      throw new Error("connect() must be called before start()");
+    }
     LOG.info("starting");
     let delay = 1000;
     const maxDelay = 30000;

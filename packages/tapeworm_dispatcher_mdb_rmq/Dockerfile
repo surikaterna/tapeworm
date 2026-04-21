@@ -3,7 +3,7 @@
 #   EXCHANGE, RESUME_COLLECTION, WATCH_MODE, TENANT
 
 # --- build stage ---
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json turbo.json tsconfig.base.json ./
 COPY packages/tapeworm/package.json packages/tapeworm/
@@ -14,7 +14,7 @@ COPY packages/tapeworm_dispatcher_mdb_rmq/ packages/tapeworm_dispatcher_mdb_rmq/
 RUN npx turbo run build --filter=tapeworm_dispatcher_mdb_rmq
 
 # --- production stage ---
-FROM node:22-alpine
+FROM node:24-alpine
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/tapeworm/package.json packages/tapeworm/

@@ -43,6 +43,9 @@ export class OplogWatcher extends EventEmitter implements ICommitWatcher {
     handler: CommitHandler,
   ): Promise<void> {
     this._stopped = false;
+    if (!this._db) {
+      throw new Error("connect() must be called before start()");
+    }
     LOG.info("starting");
     let delay = 1000;
     const maxDelay = 30000;

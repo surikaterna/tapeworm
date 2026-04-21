@@ -5,8 +5,8 @@
 //      containing your npm registry auth token.
 //   2. Configure a "username/password" credential with ID 'docker-creds'
 //      containing your Docker registry credentials.
-//   3. Set DOCKER_REGISTRY below to your registry hostname
-//      (e.g. ghcr.io/yourorg, docker.io/youruser).
+//   3. Configure a "secret text" credential with ID 'docker-registry'
+//      containing your Docker registry hostname (e.g. ghcr.io/yourorg).
 
 pipeline {
     agent {
@@ -53,8 +53,7 @@ pipeline {
             environment {
                 NPM_TOKEN    = credentials('npm-token')
                 DOCKER_CREDS = credentials('docker-creds')
-                // Operators: set this to your Docker registry hostname.
-                DOCKER_REGISTRY = 'REPLACE_WITH_YOUR_REGISTRY'
+                DOCKER_REGISTRY = credentials('docker-registry')
             }
             steps {
                 sh '''
