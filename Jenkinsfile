@@ -98,3 +98,12 @@ pipeline {
         }
     }
 }
+
+
+String escapedTagName(String prefix) {
+    if (prefix == null) {
+        prefix = ''
+    }
+    def tagName = env.BRANCH_NAME.replace("/", '-') + prefix + env.BUILD_NUMBER;
+    return tagName
+}
