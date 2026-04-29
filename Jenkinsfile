@@ -37,14 +37,30 @@ pipeline {
         }
 
         stage('Docker Build') {
+            environment {
+                registryCredential = 'docker-registry-login'
+                RELEASE_BRANCH = 'release'
+                DEVELOP_BRANCH = 'develop'
+            }
+
             steps {
-                sh '''
-                    docker build \
-                        -f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile \
-                        -t tapeworm-dispatcher:${BUILD_NUMBER} \
-                        -t tapeworm-dispatcher:latest \
-                        .
-                '''
+                script {
+                    if (env.BRANCH_NAME.startsWith(env.RELEASE_BRANCH)) {
+                        releaseTag = escapedTagName('RC-')
+                    } else {
+                        releaseTag = escapedTagName(null)
+                    }
+                    imageName = "surikaterna/tapeworm-dispatcher-mdb-rmq:${releaseTag}";
+
+                    def newImage = docker.build(imageName, "-f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile .")
+
+                    docker.withRegistry('', registryCredential) {
+                        newImage.push(releaseTag)
+                        if (env.BRANCH_NAME.startsWith(env.DEVELOP_BRANCH)) {
+                            newImage.push('latest')
+                        }
+                    }
+                }
             }
         }
 

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run --config vitest.config.mts"
   },
   "author": "Andreas Karlsson",
   "license": "MIT",

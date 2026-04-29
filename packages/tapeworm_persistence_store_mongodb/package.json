@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc && node scripts/postbuild.js",
-    "test": "vitest run",
+    "test": "vitest run --config vitest.config.mts",
     "test.watch": "npm run test --watch"
   },
   "repository": {

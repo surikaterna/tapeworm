@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "prettier": "prettier-config-surikaterna",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --config vitest.config.mts",
     "prepublishOnly": "npm test && npm run build",
     "build": "tsc"
   },
