@@ -40,39 +40,28 @@ pipeline {
         }
 
         stage('Docker Build') {
-            environment {
-                registryCredential = 'docker-registry-login'
-                RELEASE_BRANCH = 'release'
-                DEVELOP_BRANCH = 'develop'
+            agent {
+                label 'lynx'
             }
 
             steps {
-                script {
-                    if (env.BRANCH_NAME.startsWith(env.RELEASE_BRANCH)) {
-                        releaseTag = escapedTagName('RC-')
-                    } else {
-                        releaseTag = escapedTagName(null)
-                    }
-                    imageName = "surikaterna/tapeworm-dispatcher-mdb-rmq:${releaseTag}";
-
-                    def newImage = docker.build(imageName, "-f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile .")
-
-                    docker.withRegistry('', registryCredential) {
-                        newImage.push(releaseTag)
-                        if (env.BRANCH_NAME.startsWith(env.DEVELOP_BRANCH)) {
-                            newImage.push('latest')
-                        }
-                    }
-                }
+                sh '''
+                    docker build \
+                        -f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile \
+                        -t tapeworm-dispatcher:${BUILD_NUMBER} \
+                        -t tapeworm-dispatcher:latest \
+                        .
+                '''
             }
         }
 
         stage('Publish') {
-            when { branch 'main' }
             environment {
                 NPM_TOKEN    = credentials('npm-token')
                 DOCKER_CREDS = credentials('docker-creds')
                 DOCKER_REGISTRY = credentials('docker-registry')
+                RELEASE_BRANCH = 'release'
+                DEVELOP_BRANCH = 'develop'
             }
             steps {
                 sh '''
@@ -81,13 +70,22 @@ pipeline {
                     npm run changeset:publish
                 '''
 
-                sh '''
-                    echo "${DOCKER_CREDS_PSW}" | docker login -u "${DOCKER_CREDS_USR}" --password-stdin "${DOCKER_REGISTRY}"
-                    docker tag tapeworm-dispatcher:${BUILD_NUMBER} ${DOCKER_REGISTRY}/tapeworm-dispatcher:${BUILD_NUMBER}
-                    docker tag tapeworm-dispatcher:latest ${DOCKER_REGISTRY}/tapeworm-dispatcher:latest
-                    docker push ${DOCKER_REGISTRY}/tapeworm-dispatcher:${BUILD_NUMBER}
-                    docker push ${DOCKER_REGISTRY}/tapeworm-dispatcher:latest
-                '''
+                script {
+                    def releaseTag
+                    if (env.BRANCH_NAME.startsWith(env.RELEASE_BRANCH)) {
+                        releaseTag = escapedTagName('RC-')
+                    } else {
+                        releaseTag = "${env.DEVELOP_BRANCH}${env.BUILD_NUMBER}"
+                    }
+
+                    sh """
+                        echo \"${DOCKER_CREDS_PSW}\" | docker login -u \"${DOCKER_CREDS_USR}\" --password-stdin \"${DOCKER_REGISTRY}\"
+                        docker tag tapeworm-dispatcher:${BUILD_NUMBER} ${DOCKER_REGISTRY}/tapeworm-dispatcher:${releaseTag}
+                        docker tag tapeworm-dispatcher:latest ${DOCKER_REGISTRY}/tapeworm-dispatcher:latest
+                        docker push ${DOCKER_REGISTRY}/tapeworm-dispatcher:${releaseTag}
+                        docker push ${DOCKER_REGISTRY}/tapeworm-dispatcher:latest
+                    """
+                }
             }
         }
     }
