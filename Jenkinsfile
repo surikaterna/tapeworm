@@ -9,12 +9,7 @@
 //      containing your Docker registry hostname (e.g. ghcr.io/yourorg).
 
 pipeline {
-    agent {
-        docker {
-            image 'node:22'
-            label 'lynx'
-        }
-    }
+    agent none
 
     environment {
         CI = 'true'
@@ -22,18 +17,36 @@ pipeline {
 
     stages {
         stage('Install') {
+            agent {
+                docker {
+                    image 'node:22'
+                    label 'lynx'
+                }
+            }
             steps {
                 sh 'npm ci'
             }
         }
 
         stage('Build') {
+            agent {
+                docker {
+                    image 'node:22'
+                    label 'lynx'
+                }
+            }
             steps {
                 sh 'npm run build'
             }
         }
 
         stage('Test') {
+            agent {
+                docker {
+                    image 'node:22'
+                    label 'lynx'
+                }
+            }
             steps {
                 sh 'npm run test'
             }
@@ -56,6 +69,9 @@ pipeline {
         }
 
         stage('Publish') {
+            agent {
+                label 'lynx'
+            }
             environment {
                 NPM_TOKEN    = credentials('npm-token')
                 DOCKER_CREDS = credentials('docker-creds')
