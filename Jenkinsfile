@@ -11,7 +11,7 @@
 pipeline {
     agent {
         docker {
-            image 'node:22-alpine'
+            image 'node:22-bookworm-slim'
             label 'lynx'
         }
     }

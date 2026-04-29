@@ -44,7 +44,9 @@ describe("indexeddb_persistence", () => {
   });
 
   afterAll(async () => {
-    await _client!.close();
+    if (_client) {
+      await _client.close();
+    }
     if (mongoServer) {
       await mongoServer.stop();
     }
