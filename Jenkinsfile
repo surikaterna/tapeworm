@@ -57,16 +57,28 @@ pipeline {
                 label 'lynx'
             }
 
+            environment {
+                RELEASE_BRANCH = 'release'
+                DEVELOP_BRANCH = 'develop'
+            }
+
             steps {
                 script {
+                    def releaseTag
+                    if (env.BRANCH_NAME.startsWith(env.RELEASE_BRANCH)) {
+                        releaseTag = escapedTagName('RC-')
+                    } else {
+                        releaseTag = "${env.DEVELOP_BRANCH}${env.BUILD_NUMBER}"
+                    }
+
                     docker.withRegistry('', 'docker-registry-login') {
-                        sh '''
+                        sh """
                             docker build \
                                 -f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile \
-                                -t tapeworm-dispatcher:${BUILD_NUMBER} \
+                                -t tapeworm-dispatcher:${releaseTag} \
                                 -t tapeworm-dispatcher:latest \
                                 .
-                        '''
+                        """
                     }
                 }
             }
@@ -100,7 +112,7 @@ pipeline {
 
                     sh """
                         echo \"${DOCKER_CREDS_PSW}\" | docker login -u \"${DOCKER_CREDS_USR}\" --password-stdin \"${DOCKER_REGISTRY}\"
-                        docker tag tapeworm-dispatcher:${BUILD_NUMBER} ${DOCKER_REGISTRY}/tapeworm-dispatcher:${releaseTag}
+                        docker tag tapeworm-dispatcher:${releaseTag} ${DOCKER_REGISTRY}/tapeworm-dispatcher:${releaseTag}
                         docker tag tapeworm-dispatcher:latest ${DOCKER_REGISTRY}/tapeworm-dispatcher:latest
                         docker push ${DOCKER_REGISTRY}/tapeworm-dispatcher:${releaseTag}
                         docker push ${DOCKER_REGISTRY}/tapeworm-dispatcher:latest
@@ -112,7 +124,9 @@ pipeline {
 
     post {
         always {
-            cleanWs()
+            node('lynx') {
+                cleanWs()
+            }
         }
     }
 }
