@@ -83,17 +83,12 @@ pipeline {
                 }
             }
         }
-
-        stage('Publish') {
+        stage('Publish Packages') {
             agent {
                 label 'lynx'
             }
             environment {
                 NPM_TOKEN    = credentials('npm-token')
-                DOCKER_CREDS = credentials('docker-registry-login')
-                DOCKER_REGISTRY = credentials('docker-registry')
-                RELEASE_BRANCH = 'release'
-                DEVELOP_BRANCH = 'develop'
             }
             steps {
                 sh '''
@@ -101,7 +96,20 @@ pipeline {
                     npm run changeset:version
                     npm run changeset:publish
                 '''
+            }
+        }
 
+        stage('Publish Docker') {
+            agent {
+                label 'lynx'
+            }
+            environment {
+                DOCKER_CREDS = credentials('docker-registry-login')
+                DOCKER_REGISTRY = credentials('docker-registry')
+                RELEASE_BRANCH = 'release'
+                DEVELOP_BRANCH = 'develop'
+            }
+            steps {
                 script {
                     def releaseTag
                     if (env.BRANCH_NAME.startsWith(env.RELEASE_BRANCH)) {
