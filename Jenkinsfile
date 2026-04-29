@@ -83,21 +83,6 @@ pipeline {
                 }
             }
         }
-        stage('Publish Packages') {
-            agent {
-                label 'lynx'
-            }
-            environment {
-                NPM_TOKEN    = credentials('npm-token')
-            }
-            steps {
-                sh '''
-                    echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
-                    npm run changeset:version
-                    npm run changeset:publish -- --no-git-tag
-                '''
-            }
-        }
 
         stage('Publish Docker') {
             agent {
@@ -126,6 +111,22 @@ pipeline {
                         docker push ${DOCKER_REGISTRY}/tapeworm-dispatcher:latest
                     """
                 }
+            }
+        }
+
+        stage('Publish Packages') {
+            agent {
+                label 'lynx'
+            }
+            environment {
+                NPM_TOKEN    = credentials('npm-token')
+            }
+            steps {
+                sh '''
+                    echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
+                    npm run changeset:version
+                    npm run changeset:publish -- --no-git-tag
+                '''
             }
         }
     }
