@@ -94,7 +94,7 @@ pipeline {
                 sh '''
                     echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
                     npm run changeset:version
-                    npm run changeset:publish
+                    npm run changeset:publish -- --no-git-tag
                 '''
             }
         }
