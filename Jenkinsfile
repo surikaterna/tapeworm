@@ -3,7 +3,7 @@
 // Operator setup required in Jenkins:
 //   1. Configure a "secret text" credential with ID 'npm-token'
 //      containing your npm registry auth token.
-//   2. Configure a "username/password" credential with ID 'docker-creds'
+//   2. Configure a "username/password" credential with ID 'docker-registry-login'
 //      containing your Docker registry credentials.
 //   3. Configure a "secret text" credential with ID 'docker-registry'
 //      containing your Docker registry hostname (e.g. ghcr.io/yourorg).
@@ -58,13 +58,17 @@ pipeline {
             }
 
             steps {
-                sh '''
-                    docker build \
-                        -f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile \
-                        -t tapeworm-dispatcher:${BUILD_NUMBER} \
-                        -t tapeworm-dispatcher:latest \
-                        .
-                '''
+                script {
+                    docker.withRegistry('', 'docker-registry-login') {
+                        sh '''
+                            docker build \
+                                -f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile \
+                                -t tapeworm-dispatcher:${BUILD_NUMBER} \
+                                -t tapeworm-dispatcher:latest \
+                                .
+                        '''
+                    }
+                }
             }
         }
 
@@ -74,7 +78,7 @@ pipeline {
             }
             environment {
                 NPM_TOKEN    = credentials('npm-token')
-                DOCKER_CREDS = credentials('docker-creds')
+                DOCKER_CREDS = credentials('docker-registry-login')
                 DOCKER_REGISTRY = credentials('docker-registry')
                 RELEASE_BRANCH = 'release'
                 DEVELOP_BRANCH = 'develop'
