@@ -89,7 +89,6 @@ pipeline {
                 label 'lynx'
             }
             environment {
-                DOCKER_CREDS = credentials('docker-registry-login')
                 DOCKER_REGISTRY = credentials('docker-registry')
                 RELEASE_BRANCH = 'release'
                 DEVELOP_BRANCH = 'develop'
@@ -103,13 +102,16 @@ pipeline {
                         releaseTag = "${env.DEVELOP_BRANCH}${env.BUILD_NUMBER}"
                     }
 
-                    sh """
-                        echo \"${DOCKER_CREDS_PSW}\" | docker login -u \"${DOCKER_CREDS_USR}\" --password-stdin \"${DOCKER_REGISTRY}\"
-                        docker tag tapeworm-dispatcher:${releaseTag} ${DOCKER_REGISTRY}/tapeworm-dispatcher:${releaseTag}
-                        docker tag tapeworm-dispatcher:latest ${DOCKER_REGISTRY}/tapeworm-dispatcher:latest
-                        docker push ${DOCKER_REGISTRY}/tapeworm-dispatcher:${releaseTag}
-                        docker push ${DOCKER_REGISTRY}/tapeworm-dispatcher:latest
-                    """
+                    withEnv(["RELEASE_TAG=${releaseTag}"]) {
+                        docker.withRegistry('', 'docker-registry-login') {
+                            sh '''
+                                docker tag tapeworm-dispatcher:$RELEASE_TAG $DOCKER_REGISTRY/tapeworm-dispatcher:$RELEASE_TAG
+                                docker tag tapeworm-dispatcher:latest $DOCKER_REGISTRY/tapeworm-dispatcher:latest
+                                docker push $DOCKER_REGISTRY/tapeworm-dispatcher:$RELEASE_TAG
+                                docker push $DOCKER_REGISTRY/tapeworm-dispatcher:latest
+                            '''
+                        }
+                    }
                 }
             }
         }
