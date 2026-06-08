@@ -27,7 +27,7 @@
     "prettier-config-surikaterna": "^1.0.1",
     "tapeworm": "*",
     "tapeworm_persistence_store_indexeddb": "*",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.6"
   },
   "dependencies": {
     "bluebird": "^3.7.2",

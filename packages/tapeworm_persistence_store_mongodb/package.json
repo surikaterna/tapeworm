@@ -22,7 +22,7 @@
     "@types/bluebird": "3.5.42",
     "@types/lodash": "4.17.24",
     "mongodb-memory-server": "^10.4.0",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.6"
   },
   "bugs": {
     "url": "https://github.com/surikaterna/tapeworm_persistence_store_mongodb/issues"
