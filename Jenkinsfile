@@ -10,7 +10,7 @@
 
 pipeline {
     agent {
-        docker { image 'node:22-alpine' }
+        docker { image 'node:26-alpine' }
     }
 
     environment {
