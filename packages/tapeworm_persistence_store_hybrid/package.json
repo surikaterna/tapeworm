@@ -1,6 +1,6 @@
 {
   "name": "tapeworm_persistence_store_hybrid",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -27,7 +27,7 @@
     "prettier-config-surikaterna": "^1.0.1",
     "tapeworm": "*",
     "tapeworm_persistence_store_indexeddb": "*",
-    "vitest": "^3.2.4"
+    "vitest": "^5.0.0"
   },
   "dependencies": {
     "bluebird": "^3.7.2",
