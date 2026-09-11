@@ -1,6 +1,6 @@
 {
   "name": "tapeworm_dispatcher_mdb_rmq",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MongoDB change stream to RabbitMQ dispatcher for tapeworm commits",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,7 +24,7 @@
   "devDependencies": {
     "@types/amqplib": "0.10.8",
     "@types/debug": "^4.1.0",
-    "@types/node": "25.6.0",
-    "vitest": "^3.2.4"
+    "@types/node": "26.5.1",
+    "vitest": "^5.0.0"
   }
 }

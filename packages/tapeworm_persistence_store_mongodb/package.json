@@ -1,6 +1,6 @@
 {
   "name": "tapeworm_persistence_store_mongodb",
-  "version": "3.0.2",
+  "version": "3.1.0",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -22,7 +22,7 @@
     "@types/bluebird": "3.5.42",
     "@types/lodash": "4.17.24",
     "mongodb-memory-server": "^10.4.0",
-    "vitest": "^3.2.4"
+    "vitest": "^5.0.0"
   },
   "bugs": {
     "url": "https://github.com/surikaterna/tapeworm_persistence_store_mongodb/issues"
@@ -33,6 +33,6 @@
     "lodash": "^4.18.0",
     "mongodb": "^6.12.0",
     "tapeworm": "*",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.1"
   }
 }
