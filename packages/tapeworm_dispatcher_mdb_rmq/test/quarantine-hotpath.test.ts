@@ -7,9 +7,11 @@ import * as references from "../src/quarantine/validation";
 import * as policy from "../src/publication-policy";
 import { CommitPublisher } from "../src/publisher";
 import { ConfirmedChannel, type ConfirmPort, type PublishProperties } from "../src/confirmed-channel";
-import { deliverOutcome, type DeliveryOptions } from "../src/quarantine/delivery";
+import { deliverOutcome, type DeliveryOptions } from "../src/delivery";
+import { MongoQuarantineSourceReader } from "../src/quarantine/source-reader";
+import { handler, handlerScope as scope } from "./quarantine-handler-fixture";
 import { commit, MemoryStore, state } from "./fixtures";
-import { MemoryQuarantine, PolicyPublisher, rejectPolicy, scope } from "./quarantine-fixtures";
+import { MemoryQuarantine, PolicyPublisher, rejectPolicy } from "./quarantine-fixtures";
 
 vi.mock("node:crypto", { spy: true });
 vi.mock("mongodb", async (importOriginal) => {
@@ -39,13 +41,13 @@ test.each([undefined, "quarantined", "claimed", "published"] as const)(
   const bson = vi.spyOn(BSON, "serialize");
   const decode = vi.spyOn(validation, "decodeCommit");
   const publisher = new PolicyPublisher(); const checkpoint = new MemoryStore();
-  const prepareQuarantine = vi.fn(() => { throw new Error("Healthy readiness access"); });
+  const adapter = handler({ enabled: true, store, sourceRetention: "immutable-until-resolved", mode: "pause" });
+  const handle = vi.spyOn(adapter, "handle");
   const result = await deliverOutcome(commit(1), { kind: "replay", state: state() }, {
-    publisher, store: checkpoint, collection: "commits", feed: "feed", prepareQuarantine,
-    quarantine: { enabled: true, store, sourceRetention: "immutable-until-resolved", mode: "pause" } });
+    publisher, store: checkpoint, collection: "commits", feed: scope.feed, failureHandler: adapter });
   expect(result.kind).toBe("dispatched"); expect(publisher.published).toEqual([commit(1)]);
   expect(checkpoint.saved).toHaveLength(1); expect(store.record).toBe(before);
-  for (const spy of [reference, hash, bson, decode, prepareQuarantine]) expect(spy).not.toHaveBeenCalled();
+  for (const spy of [reference, hash, bson, decode, handle]) expect(spy).not.toHaveBeenCalled();
 });
 
 class Channel extends EventEmitter implements ConfirmPort {
@@ -74,7 +76,7 @@ test("normal publisher encodes one JSON/UTF8 Buffer, keeps headers/id and checkp
   const buffer = vi.spyOn(Buffer, "from");
   const checkpoint = new MemoryStore();
   const delivery = deliverOutcome(value, { kind: "replay", state: state() }, {
-    publisher, store: checkpoint, collection: "commits", feed: "feed", prepareQuarantine: () => Promise.resolve() });
+    publisher, store: checkpoint, collection: "commits", feed: scope.feed });
   const bufferCalls = buffer.mock.calls.length; buffer.mockRestore();
   expect(bufferCalls).toBe(1); expect(serialized).toBe(1); expect(encode).toHaveBeenCalledTimes(1);
   expect(configValidation).not.toHaveBeenCalled();
@@ -91,9 +93,9 @@ test.each([new Error("Rabbit unavailable"), new TypeError("Unexpected implementa
   const quarantine = new MemoryQuarantine(scope); forbidQuarantine(quarantine);
   const publisher = new PolicyPublisher(rejectPolicy); publisher.failure = failure;
   const checkpoint = new MemoryStore();
-  const prepareQuarantine = vi.fn(() => { throw new Error("Unexpected readiness"); });
-  const options: DeliveryOptions = { publisher, store: checkpoint, collection: "commits", feed: "feed", prepareQuarantine,
-    quarantine: { enabled: true, store: quarantine, sourceRetention: "immutable-until-resolved" } };
+  const prepareQuarantine = vi.spyOn(MongoQuarantineSourceReader.prototype, "initialize").mockImplementation(() => { throw new Error("Unexpected readiness"); });
+  const options: DeliveryOptions = { publisher, store: checkpoint, collection: "commits", feed: scope.feed,
+    failureHandler: handler({ enabled: true, store: quarantine, sourceRetention: "immutable-until-resolved" }) };
   await expect(deliverOutcome(commit(1), { kind: "replay", state: state() }, options)).rejects.toBe(failure);
   expect(prepareQuarantine).not.toHaveBeenCalled(); expect(checkpoint.saved).toEqual([]);
   expect((await deliverOutcome(undefined, { kind: "transition", state: state() }, options)).kind).toBe("transition");
@@ -111,14 +113,14 @@ test("actual publisher size rejection makes zero network calls; capacity fails b
 });
 test("readiness failure never fingerprints, captures or checkpoints; retry and changed fingerprint fail closed", async () => {
   const quarantine = new MemoryQuarantine(scope); const checkpoint = new MemoryStore();
-  const prepareQuarantine = vi.fn(() => Promise.reject(new Error("Index unavailable")));
+  const prepareQuarantine = vi.spyOn(MongoQuarantineSourceReader.prototype, "initialize").mockRejectedValueOnce(new Error("Index unavailable"));
   const options: DeliveryOptions = { publisher: new PolicyPublisher(rejectPolicy), store: checkpoint,
-    collection: "commits", feed: "feed", prepareQuarantine,
-    quarantine: { enabled: true, store: quarantine, sourceRetention: "immutable-until-resolved" } };
+    collection: "commits", feed: scope.feed,
+    failureHandler: handler({ enabled: true, store: quarantine, sourceRetention: "immutable-until-resolved" }) };
   const reference = vi.spyOn(references, "sourceReference");
   await expect(deliverOutcome(commit(1), { kind: "replay", state: state() }, options)).rejects.toThrow("Index unavailable");
   expect(reference).not.toHaveBeenCalled(); expect(quarantine.writes).toBe(0); expect(checkpoint.saved).toEqual([]);
-  options.prepareQuarantine = () => Promise.resolve();
+  prepareQuarantine.mockResolvedValue();
   await deliverOutcome(commit(1), { kind: "replay", state: state() }, options);
   await expect(deliverOutcome({ ...commit(1), domain: "changed" }, { kind: "replay", state: state() }, options)).rejects.toThrow("fingerprint");
   expect(checkpoint.saved).toHaveLength(1);

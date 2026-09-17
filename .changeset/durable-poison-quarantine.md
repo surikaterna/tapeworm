@@ -10,7 +10,7 @@ Reworked as transport-only cold-path quarantine (redemeine-rq8p, draft PR #44): 
 encoded message-size rejection qualifies; infrastructure and arbitrary serialization failures do not.
 There is no business-schema hook or default broker-size guess. Removed draft policy options reject at construction.
 Healthy publication does not access quarantine storage/index metadata or fingerprint the source;
-the validated transport envelope is encoded once without redundant decoding. Dispatcher source-index and store
+the validated transport envelope is encoded once without redundant decoding. Adapter source-index and store
 readiness are lazy, retryable prerequisites for cold capture of rejected records, not healthy startup.
 Normal source replay re-evaluates publishability and may deliver a previously quarantined/claimed/published
 record with the same message id, without updating its historical operator receipt. Consumer idempotency
@@ -19,3 +19,16 @@ Continue creates ordering gaps that later redrive cannot repair; source retentio
 Quarantine identity and indexed source lookups use explicit binary collation, including on
 collections with linguistic defaults. Incompatible legacy quarantine indexes require operator migration.
 The accompanying CDC migration changeset remains major and determines the combined release bump.
+
+Decouple core delivery from optional quarantine (redemeine-kiwb). Compose a
+QuarantineFailureHandler explicitly as Dispatcher failureHandler and subscribe to
+quarantined on the adapter, not the dispatcher. This intentionally replaces the
+unreleased B draft's quarantine constructor option/event; published non-quarantine
+0.2 options otherwise remain unchanged. Unsupported own dispatcher options now
+reject early, including undefined-valued extras previously silently ignored.
+The small trusted DeliveryFailureHandler port returns unhandled or durablyHandled;
+core alone owns checkpoint persistence and validates receipts before saving.
+Optional synchronous onCheckpointed notifications run only after persistence.
+Throws or untyped non-undefined returns terminally halt via DeliveryHalted rather
+than retrying from stale in-memory progress; restart reloads the saved checkpoint.
+This does not promise exactly-once notifications or certify custom-handler durability.

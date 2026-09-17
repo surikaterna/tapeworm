@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { Dispatcher, MongoResumeTokenStore, QuarantinePaused } from "../index";
+import { Dispatcher, MongoResumeTokenStore, QuarantinePaused, QuarantineFailureHandler } from "../index";
 import type { QuarantinedEvent, QuarantineConfig } from "../index";
 import { quarantineFixture } from "./quarantine-integration-fixture";
 import { eventually, rabbit } from "./services";
@@ -11,12 +11,13 @@ test.each(["changeStream", "oplog"] as const)("dispatcher pause is terminal and 
   const mq = await rabbit();
   const f = await quarantineFixture(60000, mq.exchange, mode);
   const checkpoints = new MongoResumeTokenStore(f.mongodb.db, "checkpoint");
-  const dispatcher = new Dispatcher({ ...f.config, resumeTokenStore: checkpoints,
-    quarantine: { enabled: true, store: f.store, sourceRetention: "immutable-until-resolved", mode: "pause" },
+  const adapter = new QuarantineFailureHandler({ ...f.config,
+    quarantine: { enabled: true, store: f.store, sourceRetention: "immutable-until-resolved", mode: "pause" } });
+  const dispatcher = new Dispatcher({ ...f.config, resumeTokenStore: checkpoints, failureHandler: adapter,
     publication: { maxMessageBytes: 1 } });
   const events: QuarantinedEvent[] = [];
   let dispatched = 0;
-  dispatcher.on("quarantined", (event) => { events.push(event); });
+  adapter.on("quarantined", (event) => { events.push(event); });
   dispatcher.on("dispatched", () => { dispatched++; }); dispatcher.on("error", () => {});
   const running = dispatcher.start(); const outcome = running.catch((error: unknown) => error);
   try {
@@ -36,16 +37,17 @@ test.each([["changeStream", undefined], ["oplog", undefined], ["changeStream", "
   const checkpoints = new MongoResumeTokenStore(f.mongodb.db, "checkpoint");
   const quarantine: QuarantineConfig = { enabled: true, store: f.store, sourceRetention: "immutable-until-resolved",
     ...(quarantineMode ? { mode: quarantineMode } : {}) };
-  const dispatcher = new Dispatcher({ ...f.config, resumeTokenStore: checkpoints, quarantine, publication: mixedPolicy });
+  const adapter = new QuarantineFailureHandler({ ...f.config, quarantine });
+  const dispatcher = new Dispatcher({ ...f.config, resumeTokenStore: checkpoints, failureHandler: adapter, publication: mixedPolicy });
   const events: QuarantinedEvent[] = []; const dispatched: string[] = [];
-  dispatcher.on("quarantined", (event) => { events.push(event); });
+  adapter.on("quarantined", (event) => { events.push(event); });
   dispatcher.on("dispatched", (value) => { dispatched.push(value.id); }); dispatcher.on("error", () => {});
   const running = dispatcher.start(); const outcome = running.catch((error: unknown) => error);
   try {
     await eventually(async () => Boolean((await checkpoints.load())?.primary));
     await f.mongodb.db.collection("commits").insertOne(oversizedCommit(2));
     await f.mongodb.db.collection("commits").insertOne(commit(3));
-    await eventually(async () => (await checkpoints.load())?.lastCommitToken === token(3));
+    await eventually(async () => (await checkpoints.load())?.lastCommitToken === token(3) && dispatched.length > 0);
     expect(quarantine).not.toHaveProperty("acceptOrderingGaps");
     if (quarantineMode === undefined) expect(quarantine).not.toHaveProperty("mode");
     expect(events).toHaveLength(1); expect(events[0]?.checkpointAdvanced).toBe(true);

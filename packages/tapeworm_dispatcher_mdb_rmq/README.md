@@ -272,6 +272,23 @@ Headers: `collection`, `partitionId`, `streamId`, optional `tenant`.
 
 ## Durable poison quarantine (SDK, redemeine-1i0g)
 
+**Explicit composition (redemeine-kiwb):** the core dispatcher owns publication and
+checkpointing, and accepts an optional `DeliveryFailureHandler`. Core delivery,
+recovery, and configuration types do not import the quarantine feature, even
+transitively. `QuarantineFailureHandler` implements that port and owns the typed
+`quarantined` event; applications construct it separately and pass it as
+`failureHandler`. The conventional package root exports both independent surfaces;
+it is not used by core modules to conceal a feature dependency.
+
+The port is a trusted extension, not a sandbox or proof of database durability.
+`handle(error, { commit, feed, collection })` runs only after publication fails.
+It returns `{kind:"unhandled"}` to preserve the original error, or awaits durable
+acceptance before returning `{kind:"durablyHandled", onCheckpointed?}`. It cannot
+supply checkpoint state/store or claim publication. Core validates receipt shape,
+then saves its own checkpoint; it never routes checkpoint or notification failures
+back into the handler. Successful publication never invokes the handler or allocates
+its failure context/notification. There is no generic handled event.
+
 **Availability policy (redemeine-ihn0): enabled quarantine defaults to continue**
 when `mode` is omitted. Configure a durable `store` and assert source retention;
 no secondary acknowledgement flag is required. Explicit `mode:"pause"` opts into
@@ -369,7 +386,7 @@ recommendation; replace it with the destination-appropriate threshold described 
 ```ts
 import {
   Dispatcher, CommitPublisher, MongoResumeTokenStore, checkpointFeed,
-  MongoQuarantineStore, MongoQuarantineSourceReader, QuarantineService,
+  MongoQuarantineStore, MongoQuarantineSourceReader, QuarantineService, QuarantineFailureHandler,
 } from "tapeworm_dispatcher_mdb_rmq";
 import type { DispatcherConfig, PublicationPolicy } from "tapeworm_dispatcher_mdb_rmq";
 
@@ -385,13 +402,16 @@ const store = new MongoQuarantineStore(db, "cdc_quarantine", {
 const publication: PublicationPolicy = {
   maxMessageBytes: 1_000_000,
 };
+const adapter = new QuarantineFailureHandler({ ...config,
+  quarantine: { enabled: true, store, sourceRetention: "immutable-until-resolved" }, // default continue, no flag
+});
+adapter.on("quarantined", (event) => { console.log(event.id, event.checkpointAdvanced, event.resolution); });
 const relayConfig: DispatcherConfig = {
   ...config, publication,
   resumeTokenStore: new MongoResumeTokenStore(db, "cdc_state", { checkpointKey: "relay-a", feedId: feed }),
-  quarantine: { enabled: true, store, sourceRetention: "immutable-until-resolved" }, // default continue, no flag
+  failureHandler: adapter,
 };
 const relay = new Dispatcher(relayConfig);
-relay.on("quarantined", (event) => console.log(event.id, event.checkpointAdvanced, event.resolution));
 
 // Trusted operator process: bind this caller-owned publisher to the SAME destination/tenant.
 const publisher = new CommitPublisher(config.rabbitmq);
@@ -415,8 +435,8 @@ try {
 **Continue is the default for configured, enabled quarantine:**
 `{ enabled:true, store, sourceRetention:"immutable-until-resolved" }`.
 Explicit `mode:"continue"` is equivalent and needs no acknowledgement flag.
-It checkpoints only after durable capture, emits `quarantined` rather than
-`dispatched`, and permits following healthy records while quarantine stays enabled.
+Core checkpoints only after durable capture; the adapter then emits `quarantined`,
+not a dispatcher `dispatched` success. Following healthy records proceed while the adapter stays enabled.
 **This creates per-stream ordering gaps. Later redrive cannot restore original
 order.** Use trusted consumers that tolerate gaps and enforce stable-identity
 idempotency or reconciliation; operational availability is not exactly-once delivery.
@@ -447,6 +467,19 @@ and retained its quarantine data, stop and plan that migration before upgrading.
 The original split's byte-equivalence target is superseded for this B-only rework;
 A/C changes remain unchanged. PR #44 still requires independent audit/qualification.
 
+Redemeine-kiwb additionally replaces the unpublished B draft's
+`new Dispatcher({...base, quarantine})` and `dispatcher.on("quarantined", ...)`
+with the explicit adapter composition above. `QuarantineConfig` retains its precise
+store/retention/mode requirements. Construct adapter and dispatcher from the same
+base feed/collection configuration; the adapter snapshots its binding and rejects
+eligible size failures from a different scope before database I/O or fingerprinting.
+The dispatcher now rejects unsupported **own** top-level options, including keys
+whose value is `undefined`, before constructing dependencies. This is an intentional
+runtime guard change for JavaScript callers passing extraneous, never-supported
+fields; pass only dispatcher options, not an entire application configuration object.
+Published 0.2 non-quarantine options are otherwise unchanged. These are changes to
+the pending minor feature, not a separate A major or C patch release migration.
+
 **Previous local draft migration:** the unpublished pause-by-default policy is
 superseded by redemeine-ihn0. Add explicit `mode:"pause"` to retain that behavior.
 `acceptOrderingGaps:true` is deprecated, optional compatibility syntax and does not
@@ -459,8 +492,17 @@ quarantine document is a historical rejection/operator-attempt receipt, **not a
 delivery ledger, global pending truth or proof that the source was never delivered**.
 Normal successful replay does not synchronize operator status: a list entry may
 remain quarantined/claimed after source delivery.
-Listeners must not throw: a throw propagates to delivery/retry and cannot undo an
-already durable checkpoint. Never treat event receipt as an atomic business effect.
+Adapter event observers must be synchronous and must not throw. EventEmitter's
+void listener signatures cannot forbid async listeners; they are not awaited or
+given a new framework-wide rejection policy. At the new receipt boundary,
+`onCheckpointed: () => undefined` intentionally rejects async/boolean returns in
+TypeScript. Core invokes it only after checkpoint persistence (and transition
+roundtrip validation). A synchronous throw becomes terminal `DeliveryHalted` with
+the original cause; an untyped non-undefined return, including a Promise/thenable,
+is observed for rejection without awaiting it and terminally halts as well. No
+current-message retry runs from stale in-memory progress: restart a new dispatcher
+to load the advanced checkpoint. A throwing pause observer likewise halts terminally,
+without advancing. Notifications are not exactly-once or transactional business effects.
 
 `redrive(id,{actor,reason})` performs one explicit attempt, without background or
 automatic retry. Outcomes are `published`, `already-published`, `busy`, `missing`,

@@ -1,6 +1,6 @@
 import { MongoClient } from "mongodb";
 import { afterEach, expect, test, vi } from "vitest";
-import { Dispatcher, MongoQuarantineStore, MongoResumeTokenStore, checkpointFeed } from "../index";
+import { Dispatcher, MongoQuarantineStore, MongoResumeTokenStore, checkpointFeed, QuarantineFailureHandler } from "../index";
 import * as validation from "../src/validation";
 import * as references from "../src/quarantine/validation";
 import * as publication from "../src/publication-policy";
@@ -36,8 +36,10 @@ test.each(["changeStream", "oplog"] as const)("%s healthy startup/confirmed deli
   for (const spy of spies) spy.mockImplementation(forbidden);
   const decode = vi.spyOn(validation, "decodeCommit"); const encode = vi.spyOn(publication, "encodePublication");
   const reference = vi.spyOn(references, "sourceReference");
-  const dispatcher = new Dispatcher({ ...f.config, resumeTokenStore: f.checkpoints, publication: mixedPolicy,
+  const adapter = new QuarantineFailureHandler({ ...f.config,
     quarantine: { enabled: true, store: f.store, sourceRetention: "immutable-until-resolved" } });
+  const handle = vi.spyOn(adapter, "handle");
+  const dispatcher = new Dispatcher({ ...f.config, resumeTokenStore: f.checkpoints, publication: mixedPolicy, failureHandler: adapter });
   dispatcher.on("error", () => {});
   const outcome = dispatcher.start().catch((error: unknown) => error);
   try {
@@ -45,7 +47,7 @@ test.each(["changeStream", "oplog"] as const)("%s healthy startup/confirmed deli
     await f.db.collection("commits").insertOne(commit(1));
     await eventually(async () => (await f.checkpoints.load())?.lastCommitToken === token(1));
     expect(decode).toHaveBeenCalledTimes(1); expect(encode).toHaveBeenCalledTimes(1);
-    expect(reference).not.toHaveBeenCalled();
+    expect(reference).not.toHaveBeenCalled(); expect(handle).not.toHaveBeenCalled();
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
     expect(quarantineCommands(f.commands)).toEqual([]);
     expect(f.commands.filter((command) => command.listIndexes === "commits")).toEqual([]);
@@ -63,8 +65,9 @@ test("first oversized record initializes source then store before capture; two p
   await f.db.collection("commits").createIndex({ id: 1 }, { unique: true });
   f.commands.length = 0;
   const capture = vi.spyOn(f.store, "capture");
-  const dispatcher = new Dispatcher({ ...f.config, resumeTokenStore: f.checkpoints, publication: mixedPolicy,
+  const adapter = new QuarantineFailureHandler({ ...f.config,
     quarantine: { enabled: true, store: f.store, sourceRetention: "immutable-until-resolved" } });
+  const dispatcher = new Dispatcher({ ...f.config, resumeTokenStore: f.checkpoints, publication: mixedPolicy, failureHandler: adapter });
   dispatcher.on("error", () => {});
   const outcome = dispatcher.start().catch((error: unknown) => error);
   try {
@@ -103,8 +106,9 @@ test.each(["source-index", "store-index", "storage"])("cold %s failure blocks ca
   const mq = await rabbit(); const f = await fixture(mq.exchange);
   await breakReadiness(f, failure); f.commands.length = 0;
   const capture = vi.spyOn(f.store, "capture");
-  const dispatcher = new Dispatcher({ ...f.config, resumeTokenStore: f.checkpoints, publication: mixedPolicy,
+  const adapter = new QuarantineFailureHandler({ ...f.config,
     quarantine: { enabled: true, store: f.store, sourceRetention: "immutable-until-resolved" } });
+  const dispatcher = new Dispatcher({ ...f.config, resumeTokenStore: f.checkpoints, publication: mixedPolicy, failureHandler: adapter });
   let failed: () => void = () => {};
   const firstFailure = new Promise<void>((resolve) => { failed = resolve; });
   dispatcher.on("error", failed);

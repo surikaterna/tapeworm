@@ -1,22 +1,32 @@
-import { expect, test } from "vitest";
-import { deliverOutcome, type DeliveryOptions } from "../src/quarantine/delivery";
+import { afterEach, expect, test, vi } from "vitest";
+import { deliverOutcome, type DeliveryOptions } from "../src/delivery";
+import { MongoQuarantineSourceReader } from "../src/quarantine/source-reader";
+import { handler, handlerScope as scope } from "./quarantine-handler-fixture";
 import { QuarantinePaused } from "../src/quarantine/errors";
 import { RecoveryWatcher } from "../src/recovery-watcher";
 import { commit, FakeHistory, FakeLive, item, MemoryStore, state } from "./fixtures";
-import { MemoryQuarantine, PolicyPublisher, rejectPolicy, scope, mixedPolicy, oversizedCommit } from "./quarantine-fixtures";
+import { MemoryQuarantine, PolicyPublisher, rejectPolicy, mixedPolicy, oversizedCommit } from "./quarantine-fixtures";
+import type { QuarantineConfig, QuarantinedEvent } from "../src/quarantine/types";
+
+afterEach(() => { vi.restoreAllMocks(); });
 
 function setup(mode?: "pause" | "continue") {
   const quarantine = new MemoryQuarantine(scope);
   const publisher = new PolicyPublisher(rejectPolicy);
   const store = new MemoryStore();
-  const options: DeliveryOptions = { publisher, store, collection: "commits", feed: "feed", prepareQuarantine: () => Promise.resolve(), quarantine: {
-    enabled: true, store: quarantine, sourceRetention: "immutable-until-resolved", ...(mode ? { mode } : {}) } };
-  return { quarantine, publisher, store, options };
+  vi.spyOn(MongoQuarantineSourceReader.prototype, "initialize").mockResolvedValue();
+  const config: QuarantineConfig = {
+    enabled: true, store: quarantine, sourceRetention: "immutable-until-resolved", ...(mode ? { mode } : {}) };
+  const adapter = handler(config);
+  const events: QuarantinedEvent[] = [];
+  adapter.on("quarantined", (event) => { events.push(event); });
+  const options: DeliveryOptions = { publisher, store, collection: "commits", feed: scope.feed, failureHandler: adapter };
+  return { quarantine, publisher, store, options, config, adapter, events };
 }
 const progress = { kind: "replay" as const, state: state() };
 test.each([undefined, { enabled: false }] as const)("absent/disabled quarantine %j performs zero lookup and stays fail-closed", async (config) => {
   const { options, quarantine, store } = setup();
-  options.quarantine = config;
+  options.failureHandler = config ? handler(config) : undefined;
   await expect(deliverOutcome(commit(1), progress, options)).rejects.toThrow("message-too-large");
   expect(quarantine.lookups).toBe(0); expect(store.saved).toEqual([]);
   options.publisher = new PolicyPublisher();
@@ -30,19 +40,20 @@ test("pause re-evaluates and captures idempotently, never checkpoints", async ()
   expect(quarantine.writes).toBe(2); expect(publisher.calls).toBe(2); expect(publisher.published).toEqual([]); expect(store.saved).toEqual([]);
 });
 test.each([undefined, "continue"] as const)("enabled mode %s continues through poison and healthy records without a flag", async (mode) => {
-  const { options, quarantine, store } = setup(mode);
+  const { options, quarantine, store, config, events } = setup(mode);
   const publisher = new PolicyPublisher(mixedPolicy);
   options.publisher = publisher;
-  expect(options.quarantine).not.toHaveProperty("acceptOrderingGaps");
-  if (mode === undefined) expect(options.quarantine).not.toHaveProperty("mode");
-  expect((await deliverOutcome(oversizedCommit(1), progress, options))).toMatchObject({ kind: "quarantined", event: { checkpointAdvanced: true } });
+  expect(config).not.toHaveProperty("acceptOrderingGaps");
+  if (mode === undefined) expect(config).not.toHaveProperty("mode");
+  expect((await deliverOutcome(oversizedCommit(1), progress, options))).toMatchObject({ kind: "handled" });
+  expect(events).toMatchObject([{ checkpointAdvanced: true }]);
   expect(quarantine.record?.status).toBe("quarantined"); expect(store.saved).toHaveLength(1);
   expect((await deliverOutcome(commit(2), progress, options)).kind).toBe("dispatched");
   expect(publisher.published).toEqual([commit(2)]); expect(quarantine.lookups).toBe(0);
-  expect(options.quarantine?.enabled).toBe(true); expect(store.saved).toHaveLength(2);
+  expect(config.enabled).toBe(true); expect(store.saved).toHaveLength(2);
 });
 test("default continue waits for durable capture before checkpointing", async () => {
-  const { options, quarantine, store } = setup();
+  const { options, quarantine, store, events } = setup();
   const capture = quarantine.capture.bind(quarantine);
   let release: () => void = () => {};
   let began: () => void = () => {};
@@ -57,7 +68,8 @@ test("default continue waits for durable capture before checkpointing", async ()
   store.save = async (value) => { order.push("checkpoint"); await save(value); };
   const delivery = deliverOutcome(commit(1), progress, options);
   await started; expect(store.saved).toEqual([]); expect(quarantine.record).toBeUndefined();
-  release(); expect(await delivery).toMatchObject({ kind: "quarantined", event: { checkpointAdvanced: true } });
+  release(); expect(await delivery).toMatchObject({ kind: "handled" });
+  expect(events).toMatchObject([{ checkpointAdvanced: true }]);
   expect(order).toEqual(["capture-durable", "checkpoint"]);
 });
 test("capture failure and infrastructure failure cannot advance position", async () => {
@@ -70,17 +82,21 @@ test("capture failure and infrastructure failure cannot advance position", async
   expect(quarantine.writes).toBe(1); expect(store.saved).toEqual([]);
 });
 test("checkpoint failure keeps capture recoverable; currently rejected published receipt resolves even pause", async () => {
-  const { options, quarantine, store, publisher } = setup();
+  const { options, quarantine, store, publisher, events } = setup("pause");
+  options.failureHandler = handler({ enabled: true, store: quarantine, sourceRetention: "immutable-until-resolved" });
   store.failure = true;
   await expect(deliverOutcome(commit(1), progress, options)).rejects.toThrow("Save failed");
   const captured = quarantine.record;
   store.failure = false;
-  expect((await deliverOutcome(commit(1), progress, options)).kind).toBe("quarantined");
+  expect((await deliverOutcome(commit(1), progress, options)).kind).toBe("handled");
   expect(quarantine.record).toBe(captured);
   if (!quarantine.record) throw new Error("Missing capture");
   quarantine.record = { ...quarantine.record, status: "published" };
-  if (options.quarantine?.enabled) options.quarantine.mode = "pause";
-  expect(await deliverOutcome(commit(1), progress, options)).toMatchObject({ kind: "quarantined", event: { resolution: "published" } });
+  const adapter = handler({ enabled: true, store: quarantine, sourceRetention: "immutable-until-resolved", mode: "pause" });
+  adapter.on("quarantined", (event) => { events.push(event); });
+  options.failureHandler = adapter;
+  expect(await deliverOutcome(commit(1), progress, options)).toMatchObject({ kind: "handled" });
+  expect(events).toMatchObject([{ resolution: "published" }]);
   expect(publisher.calls).toBe(3); expect(publisher.published).toEqual([]);
 });
 test.each(["changeStream", "oplog"] as const)("pause terminally stops common watcher in %s", async (mode) => {

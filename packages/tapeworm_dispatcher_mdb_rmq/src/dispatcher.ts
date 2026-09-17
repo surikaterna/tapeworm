@@ -5,10 +5,8 @@ import { ChangeStreamWatcher } from "./watcher";
 import type { DurableCommitWatcher } from "./watcher";
 import { OplogWatcher } from "./oplog-watcher";
 import { CommitPublisher } from "./publisher";
-import { deliverOutcome } from "./quarantine/delivery";
-import { QuarantinePaused } from "./quarantine/errors";
-import { validateQuarantine } from "./quarantine/validation";
-import { MongoQuarantineSourceReader } from "./quarantine/source-reader";
+import { deliverOutcome } from "./delivery";
+import { validateDispatcherConfig } from "./dispatcher-config";
 import { decodeState } from "./validation";
 import { checkpointFeed } from "./feed";
 
@@ -20,26 +18,17 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
   private stopped = false;
   private stopping?: Promise<void>;
   private readonly feed: string;
-  private quarantineReady?: Promise<void>;
 
-  private readonly prepareQuarantine = (): Promise<void> => {
-    this.quarantineReady ??= this.initializeQuarantine().catch((error: unknown) => {
-      this.quarantineReady = undefined;
-      throw error;
-    });
-    return this.quarantineReady;
-  };
-
-  private async initializeQuarantine(): Promise<void> {
-    if (!this.config.quarantine?.enabled) throw new Error("Quarantine is disabled");
-    await new MongoQuarantineSourceReader(this.config.mongodb.db, this.config.mongodb.collection, this.feed).initialize();
-    await this.config.quarantine.store.initialize();
+  // Node's emitter permits unknown strings; this SDK exposes declared events and Node's observer hooks.
+  override on<E extends string | symbol>(event: E & (keyof DispatcherEvents | "newListener" | "removeListener" | symbol),
+    listener: Parameters<typeof this.addListener<E>>[1]): this {
+    return super.on(event, listener);
   }
 
   constructor(private readonly config: DispatcherConfig) {
     super();
+    validateDispatcherConfig(config);
     this.feed = checkpointFeed(config);
-    validateQuarantine(config.quarantine, { feed: this.feed, sourceCollection: config.mongodb.collection });
     this.watcher = config.watchMode === "oplog" ? new OplogWatcher(config.mongodb) : new ChangeStreamWatcher(config.mongodb);
     this.publisher = new CommitPublisher(config.rabbitmq, config.tenant, config.publication);
     this.watcher.on("fallback", () => this.emit("fallback"));
@@ -77,16 +66,9 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
   }
 
   private async handle(commit: ICommit | undefined, progress: DurableProgress): Promise<void> {
-    try {
-      const result = await deliverOutcome(commit, progress, { publisher: this.publisher, store: this.config.resumeTokenStore,
-        collection: this.config.mongodb.collection, feed: this.feed, quarantine: this.config.quarantine,
-        prepareQuarantine: this.prepareQuarantine });
-      if (result.kind === "dispatched" && commit) this.emit("dispatched", commit);
-      if (result.kind === "quarantined") this.emit("quarantined", result.event);
-    } catch (error: unknown) {
-      if (error instanceof QuarantinePaused) this.emit("quarantined", error.event);
-      throw error;
-    }
+    const result = await deliverOutcome(commit, progress, { publisher: this.publisher, store: this.config.resumeTokenStore,
+      collection: this.config.mongodb.collection, feed: this.feed, failureHandler: this.config.failureHandler });
+    if (result.kind === "dispatched" && commit) this.emit("dispatched", commit);
   }
 
   private isStopped(): boolean { return this.stopped; }

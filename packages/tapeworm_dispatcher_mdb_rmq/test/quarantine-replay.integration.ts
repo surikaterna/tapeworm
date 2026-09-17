@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { CommitPublisher, MongoResumeTokenStore } from "../index";
-import { deliverOutcome } from "../src/quarantine/delivery";
+import { CommitPublisher, MongoResumeTokenStore, MongoQuarantineSourceReader, QuarantineFailureHandler, type QuarantinedEvent } from "../index";
+import { deliverOutcome } from "../src/delivery";
 import { quarantineFixture } from "./quarantine-integration-fixture";
 import { mixedPolicy, PolicyPublisher, request } from "./quarantine-fixtures";
 import { state } from "./fixtures";
@@ -24,12 +24,15 @@ test.each(["quarantined", "claimed", "published"] as const)("currently healthy r
       vi.spyOn(f.store, "list"), vi.spyOn(f.store, "claim"), vi.spyOn(f.store, "finish")];
     for (const spy of spies) spy.mockImplementation(forbidden);
     const checkpoints = new MongoResumeTokenStore(f.mongodb.db, "checkpoint");
+    const adapter = new QuarantineFailureHandler({ ...f.config,
+      quarantine: { enabled: true, store: f.store, sourceRetention: "immutable-until-resolved", mode: "pause" } });
+    const handle = vi.spyOn(adapter, "handle");
     await publisher.connect();
     const result = await deliverOutcome(f.value, { kind: "replay", state: state() }, {
-      publisher, store: checkpoints, collection: "commits", feed: f.scope.feed, prepareQuarantine: forbidden,
-      quarantine: { enabled: true, store: f.store, sourceRetention: "immutable-until-resolved", mode: "pause" } });
+      publisher, store: checkpoints, collection: "commits", feed: f.scope.feed, failureHandler: adapter });
     expect(result.kind).toBe("dispatched"); expect(await checkpoints.load()).not.toBeNull();
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    expect(handle).not.toHaveBeenCalled();
     expect(await f.mongodb.db.collection("quarantine").findOne({})).toEqual(before);
     const message = await mq.channel.get(mq.queue, { noAck: true });
     if (!message) throw new Error("Missing replay publication");
@@ -48,18 +51,22 @@ test("currently rejected published receipt resolves pause; capture retry preserv
     const checkpoints = new MongoResumeTokenStore(f.mongodb.db, "checkpoint");
     const save = vi.spyOn(checkpoints, "save").mockRejectedValueOnce(new Error("Checkpoint unavailable"));
     const publisher = new PolicyPublisher(mixedPolicy);
-    const prepareQuarantine = vi.fn(async () => { await f.source.initialize(); await f.store.initialize(); });
-    const options = { publisher, store: checkpoints, collection: "commits", feed: f.scope.feed, prepareQuarantine,
-      quarantine: { enabled: true as const, store: f.store, sourceRetention: "immutable-until-resolved" as const, mode: "pause" as const } };
+    const ready = vi.spyOn(MongoQuarantineSourceReader.prototype, "initialize");
+    const adapter = new QuarantineFailureHandler({ ...f.config,
+      quarantine: { enabled: true, store: f.store, sourceRetention: "immutable-until-resolved", mode: "pause" } });
+    const handle = vi.spyOn(adapter, "handle"); const events: QuarantinedEvent[] = [];
+    adapter.on("quarantined", (event) => { events.push(event); });
+    const options = { publisher, store: checkpoints, collection: "commits", feed: f.scope.feed, failureHandler: adapter };
     const progress = { kind: "replay" as const, state: state() };
     await expect(deliverOutcome(f.value, progress, options)).rejects.toThrow("Checkpoint unavailable");
-    expect(await checkpoints.load()).toBeNull();
-    expect(await deliverOutcome(f.value, progress, options)).toMatchObject({ kind: "quarantined",
-      event: { resolution: "published", checkpointAdvanced: true } });
+    expect(await checkpoints.load()).toBeNull(); expect(events).toEqual([]);
+    expect(handle).toHaveBeenCalledTimes(1);
+    expect(await deliverOutcome(f.value, progress, options)).toMatchObject({ kind: "handled" });
+    expect(events).toMatchObject([{ resolution: "published", checkpointAdvanced: true }]);
     const after = await f.store.find(f.reference);
     expect(after).toMatchObject({ id: before?.id, status: "published", attempts: before?.attempts,
       reference: before?.reference, observations: (before?.observations ?? 0) + 2 });
-    expect(save).toHaveBeenCalledTimes(2); expect(prepareQuarantine).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenCalledTimes(2); expect(ready).toHaveBeenCalledTimes(1); expect(handle).toHaveBeenCalledTimes(2);
     expect(publisher.published).toEqual([]);
   } finally { await f.mongodb.close(); }
 });
