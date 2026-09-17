@@ -20,6 +20,21 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
   private stopped = false;
   private stopping?: Promise<void>;
   private readonly feed: string;
+  private quarantineReady?: Promise<void>;
+
+  private readonly prepareQuarantine = (): Promise<void> => {
+    this.quarantineReady ??= this.initializeQuarantine().catch((error: unknown) => {
+      this.quarantineReady = undefined;
+      throw error;
+    });
+    return this.quarantineReady;
+  };
+
+  private async initializeQuarantine(): Promise<void> {
+    if (!this.config.quarantine?.enabled) throw new Error("Quarantine is disabled");
+    await new MongoQuarantineSourceReader(this.config.mongodb.db, this.config.mongodb.collection, this.feed).initialize();
+    await this.config.quarantine.store.initialize();
+  }
 
   constructor(private readonly config: DispatcherConfig) {
     super();
@@ -47,10 +62,6 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
     this.running = true;
     try {
       const state = await this.load();
-      if (this.config.quarantine?.enabled) {
-        await new MongoQuarantineSourceReader(this.config.mongodb.db, this.config.mongodb.collection, this.feed).initialize();
-        await this.config.quarantine.store.initialize();
-      }
       await this.watcher.connect();
       await this.publisher.connect();
       if (this.isStopped()) return;
@@ -68,7 +79,8 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
   private async handle(commit: ICommit | undefined, progress: DurableProgress): Promise<void> {
     try {
       const result = await deliverOutcome(commit, progress, { publisher: this.publisher, store: this.config.resumeTokenStore,
-        collection: this.config.mongodb.collection, feed: this.feed, quarantine: this.config.quarantine });
+        collection: this.config.mongodb.collection, feed: this.feed, quarantine: this.config.quarantine,
+        prepareQuarantine: this.prepareQuarantine });
       if (result.kind === "dispatched" && commit) this.emit("dispatched", commit);
       if (result.kind === "quarantined") this.emit("quarantined", result.event);
     } catch (error: unknown) {

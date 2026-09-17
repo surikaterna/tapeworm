@@ -3,13 +3,13 @@ import { deliverOutcome, type DeliveryOptions } from "../src/quarantine/delivery
 import { QuarantinePaused } from "../src/quarantine/errors";
 import { RecoveryWatcher } from "../src/recovery-watcher";
 import { commit, FakeHistory, FakeLive, item, MemoryStore, state } from "./fixtures";
-import { MemoryQuarantine, PolicyPublisher, rejectPolicy, scope } from "./quarantine-fixtures";
+import { MemoryQuarantine, PolicyPublisher, rejectPolicy, scope, mixedPolicy, oversizedCommit } from "./quarantine-fixtures";
 
 function setup(mode?: "pause" | "continue") {
   const quarantine = new MemoryQuarantine(scope);
   const publisher = new PolicyPublisher(rejectPolicy);
   const store = new MemoryStore();
-  const options: DeliveryOptions = { publisher, store, collection: "commits", feed: "feed", quarantine: {
+  const options: DeliveryOptions = { publisher, store, collection: "commits", feed: "feed", prepareQuarantine: () => Promise.resolve(), quarantine: {
     enabled: true, store: quarantine, sourceRetention: "immutable-until-resolved", ...(mode ? { mode } : {}) } };
   return { quarantine, publisher, store, options };
 }
@@ -17,29 +17,28 @@ const progress = { kind: "replay" as const, state: state() };
 test.each([undefined, { enabled: false }] as const)("absent/disabled quarantine %j performs zero lookup and stays fail-closed", async (config) => {
   const { options, quarantine, store } = setup();
   options.quarantine = config;
-  await expect(deliverOutcome(commit(1), progress, options)).rejects.toThrow("unsupported-schema");
+  await expect(deliverOutcome(commit(1), progress, options)).rejects.toThrow("message-too-large");
   expect(quarantine.lookups).toBe(0); expect(store.saved).toEqual([]);
   options.publisher = new PolicyPublisher();
   expect((await deliverOutcome(commit(1), progress, options)).kind).toBe("dispatched");
 });
-test("pause captures once, terminal error contains redacted event, never checkpoints or retries publication", async () => {
+test("pause re-evaluates and captures idempotently, never checkpoints", async () => {
   const { options, quarantine, publisher, store } = setup("pause");
   await expect(deliverOutcome(commit(1), progress, options)).rejects.toMatchObject({
     event: { checkpointAdvanced: false, resolution: "unresolved" } });
   await expect(deliverOutcome(commit(1), progress, options)).rejects.toBeInstanceOf(QuarantinePaused);
-  expect(quarantine.writes).toBe(1); expect(publisher.calls).toBe(1); expect(store.saved).toEqual([]);
+  expect(quarantine.writes).toBe(2); expect(publisher.calls).toBe(2); expect(publisher.published).toEqual([]); expect(store.saved).toEqual([]);
 });
 test.each([undefined, "continue"] as const)("enabled mode %s continues through poison and healthy records without a flag", async (mode) => {
   const { options, quarantine, store } = setup(mode);
-  const publisher = new PolicyPublisher({ validateRecord: (value) => value.id === "commit-1"
-    ? { kind: "reject", code: "unsupported-schema" } : { kind: "allow" } });
+  const publisher = new PolicyPublisher(mixedPolicy);
   options.publisher = publisher;
   expect(options.quarantine).not.toHaveProperty("acceptOrderingGaps");
   if (mode === undefined) expect(options.quarantine).not.toHaveProperty("mode");
-  expect((await deliverOutcome(commit(1), progress, options))).toMatchObject({ kind: "quarantined", event: { checkpointAdvanced: true } });
+  expect((await deliverOutcome(oversizedCommit(1), progress, options))).toMatchObject({ kind: "quarantined", event: { checkpointAdvanced: true } });
   expect(quarantine.record?.status).toBe("quarantined"); expect(store.saved).toHaveLength(1);
   expect((await deliverOutcome(commit(2), progress, options)).kind).toBe("dispatched");
-  expect(publisher.published).toEqual([commit(2)]); expect(quarantine.lookups).toBe(2);
+  expect(publisher.published).toEqual([commit(2)]); expect(quarantine.lookups).toBe(0);
   expect(options.quarantine?.enabled).toBe(true); expect(store.saved).toHaveLength(2);
 });
 test("default continue waits for durable capture before checkpointing", async () => {
@@ -70,16 +69,19 @@ test("capture failure and infrastructure failure cannot advance position", async
   await expect(deliverOutcome(commit(1), progress, options)).rejects.toThrow("Rabbit unavailable");
   expect(quarantine.writes).toBe(1); expect(store.saved).toEqual([]);
 });
-test("checkpoint failure keeps capture recoverable; published replay skips duplicate publication", async () => {
+test("checkpoint failure keeps capture recoverable; currently rejected published receipt resolves even pause", async () => {
   const { options, quarantine, store, publisher } = setup();
   store.failure = true;
   await expect(deliverOutcome(commit(1), progress, options)).rejects.toThrow("Save failed");
+  const captured = quarantine.record;
   store.failure = false;
   expect((await deliverOutcome(commit(1), progress, options)).kind).toBe("quarantined");
+  expect(quarantine.record).toBe(captured);
   if (!quarantine.record) throw new Error("Missing capture");
   quarantine.record = { ...quarantine.record, status: "published" };
+  if (options.quarantine?.enabled) options.quarantine.mode = "pause";
   expect(await deliverOutcome(commit(1), progress, options)).toMatchObject({ kind: "quarantined", event: { resolution: "published" } });
-  expect(publisher.calls).toBe(1);
+  expect(publisher.calls).toBe(3); expect(publisher.published).toEqual([]);
 });
 test.each(["changeStream", "oplog"] as const)("pause terminally stops common watcher in %s", async (mode) => {
   const { options, publisher, store } = setup("pause");

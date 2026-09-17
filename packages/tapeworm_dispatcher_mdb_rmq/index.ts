@@ -9,7 +9,7 @@ export { MongoQuarantineSourceReader } from "./src/quarantine/source-reader";
 export { QuarantineService } from "./src/quarantine/service";
 export { QuarantinePaused } from "./src/quarantine/errors";
 export type { PublisherPort } from "./src/delivery";
-export type { PublicationPolicy, PublicationDecision, RejectionCode } from "./src/publication-policy";
+export type { PublicationPolicy, RejectionCode } from "./src/publication-policy";
 export type { MongoQuarantineStoreOptions } from "./src/quarantine/mongodb-store";
 export type { QuarantineServiceOptions } from "./src/quarantine/service";
 export type { QuarantineScope, SourceReference, QuarantineStatus, AttemptResult, DiagnosticCode, RedriveRequest,

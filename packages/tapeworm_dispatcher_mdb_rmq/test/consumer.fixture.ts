@@ -3,6 +3,10 @@ import type { Document } from "mongodb";
 import { Dispatcher, ChangeStreamWatcher, OplogWatcher, MongoResumeTokenStore, checkpointFeed,
   MongoQuarantineStore, MongoQuarantineSourceReader, QuarantineService, CommitPublisher } from "tapeworm_dispatcher_mdb_rmq";
 import type { CommitHandler, IResumeTokenStore, ResumeState, ProgressHandler } from "tapeworm_dispatcher_mdb_rmq";
+import type { ICommit } from "tapeworm";
+// @ts-expect-error business schema decisions are not a transport API
+export type { PublicationDecision } from "tapeworm_dispatcher_mdb_rmq";
+import type { RejectionCode } from "tapeworm_dispatcher_mdb_rmq";
 
 const db = new MongoClient("mongodb://localhost").db("consumer");
 const legacy = new MongoResumeTokenStore(db, "state");
@@ -45,7 +49,7 @@ new Dispatcher({ ...config, resumeTokenStore: scoped, quarantine: { ...enabled, 
 new Dispatcher({ ...config, resumeTokenStore: scoped, quarantine: { ...enabled, mode: "pause", acceptOrderingGaps: true } });
 new Dispatcher({ ...config, resumeTokenStore: scoped, quarantine: { enabled: false, acceptOrderingGaps: true } });
 new Dispatcher({ ...config, resumeTokenStore: scoped, quarantine: { enabled: false }, publication: {
-  maxMessageBytes: 1000, validateRecord: (commit) => commit.events.length ? { kind: "allow" } : { kind: "reject", code: "unsupported-schema" } } });
+  maxMessageBytes: 1000 } });
 // @ts-expect-error deprecated compatibility field cannot disable ordering gaps
 new Dispatcher({ ...config, resumeTokenStore: scoped, quarantine: { ...enabled, mode: "continue", acceptOrderingGaps: false } });
 // @ts-expect-error false is invalid even with mode omitted
@@ -58,10 +62,13 @@ new Dispatcher({ ...config, resumeTokenStore: scoped, quarantine: { ...enabled, 
 new Dispatcher({ ...config, resumeTokenStore: scoped, quarantine: { enabled: true, sourceRetention: "immutable-until-resolved" } });
 // @ts-expect-error enabling quarantine requires an explicit source-retention assertion
 new Dispatcher({ ...config, resumeTokenStore: scoped, quarantine: { enabled: true, store: quarantine } });
-// @ts-expect-error arbitrary validator error codes are not eligible
-new CommitPublisher(config.rabbitmq, undefined, { validateRecord: () => ({ kind: "reject", code: "network" }) });
-// @ts-expect-error validators must return the explicit decision, not a boolean
+// @ts-expect-error business validators are removed, including former valid decisions
+new CommitPublisher(config.rabbitmq, undefined, { validateRecord: () => ({ kind: "allow" }) });
+// @ts-expect-error no business validator option is accepted
 new CommitPublisher(config.rabbitmq, undefined, { validateRecord: () => true });
+// @ts-expect-error schema rejection is not a transport rejection
+const invalidCode: RejectionCode = "unsupported-schema";
+console.log(invalidCode);
 dispatcher.on("quarantined", (event) => {
   const advanced: boolean = event.checkpointAdvanced;
   const resolved: "unresolved" | "published" = event.resolution;
@@ -70,10 +77,15 @@ dispatcher.on("quarantined", (event) => {
   console.log(advanced, resolved, payload);
 });
 const publisher = new CommitPublisher(config.rabbitmq);
+declare const validated: ICommit;
+declare const untrusted: unknown;
+void publisher.publish(validated, "commits");
+// @ts-expect-error unknown source data must be validated upstream
+void publisher.publish(untrusted, "commits");
 const service = new QuarantineService({ ...config, store: quarantine, publisher, sourceRetention: "immutable-until-resolved",
   source: new MongoQuarantineSourceReader(db, "commits", checkpointFeed(config)) });
 void service.list({ limit: 25, status: "quarantined" });
-void service.redrive("000000000000000000000001", { actor: "operator", reason: "schema fixed" });
+void service.redrive("000000000000000000000001", { actor: "operator", reason: "transport limit raised" });
 // @ts-expect-error each operator attempt requires actor and reason
 void service.redrive("000000000000000000000001", { actor: "operator" });
 void service.close(); void publisher.close();

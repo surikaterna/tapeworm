@@ -2,17 +2,17 @@ import { expect, test } from "vitest";
 import { ObjectId, BSON, Long } from "mongodb";
 import { commit } from "./fixtures";
 import { encodePublication, rejectionCode, validatePublicationPolicy, type PublicationPolicy } from "../src/publication-policy";
-import { sourceReference, validateQuarantine } from "../src/quarantine/validation";
+import { sourceReference, validateQuarantine, validateRejection, validateCompletion } from "../src/quarantine/validation";
 import { MemoryQuarantine, rejectPolicy, scope } from "./quarantine-fixtures";
+import { CommitPublisher } from "../src/publisher";
 
 function eligible(policy: PublicationPolicy): string | undefined {
   try { encodePublication(commit(1), policy); } catch (error: unknown) { return rejectionCode(error); }
   return undefined;
 }
-test("only deliberate prepublication schema or local byte limit is eligible", () => {
-  expect(eligible(rejectPolicy)).toBe("unsupported-schema");
+test("only configured local byte limit is eligible", () => {
+  expect(eligible(rejectPolicy)).toBe("message-too-large");
   expect(eligible({ maxMessageBytes: 1 })).toBe("message-too-large");
-  expect(eligible({ validateRecord: () => { throw new TypeError("schema implementation failure"); } })).toBeUndefined();
   for (const failure of [new Error("nack"), new Error("timeout"), new Error("auth"), new TypeError("encoding")]) {
     expect(rejectionCode(failure)).toBeUndefined();
   }
@@ -24,21 +24,35 @@ test("UTF8 byte length is checked after actual JSON encoding, inclusive at bound
   expect(encodePublication(value, { maxMessageBytes: body.length })).toEqual(body);
   expect(() => encodePublication(value, { maxMessageBytes: body.length - 1 })).toThrow("message-too-large");
 });
-test("serializer exceptions and invalid identities cannot become poison", () => {
+test("serializer exceptions cannot become poison", () => {
   const value = { ...commit(1), toJSON: () => { throw new TypeError("resource bug"); } };
   try { encodePublication(value, { maxMessageBytes: 1 }); } catch (error: unknown) { expect(rejectionCode(error)).toBeUndefined(); }
-  expect(() => encodePublication({ ...commit(1), id: "" }, rejectPolicy)).toThrow("source identity");
+  expect(() => encodePublication(value, rejectPolicy)).toThrow("serialization failed");
 });
-test("malformed JS validator results and rethrown eligible errors never become poison", () => {
-  for (const value of [undefined, null, { kind: "reject", code: "other" }, { kind: "allow", extra: true }]) {
+test("constructor rejects removed or unsupported JS options even nonenumerable and undefined", () => {
+  for (const key of ["validateRecord", "other", Symbol("option")]) {
     const policy: PublicationPolicy = {};
-    Object.defineProperty(policy, "validateRecord", { value: () => value });
-    expect(eligible(policy)).toBeUndefined();
-    expect(() => encodePublication(commit(1), policy)).toThrow();
+    Object.defineProperty(policy, key, { value: undefined });
+    expect(() => new CommitPublisher({ uri: "amqp://localhost", exchange: "e" }, undefined, policy)).toThrow("Unsupported publication option");
   }
+  for (const value of [null, [], "old", 1, true, new Date(), { validateRecord: () => ({ kind: "allow" }) }, { maxMessageBytes: "1" }]) {
+    expect(() => { validatePublicationPolicy(value); }).toThrow();
+    expect(() => { Reflect.construct(CommitPublisher, [{ uri: "amqp://localhost", exchange: "e" }, undefined, value]); }).toThrow();
+  }
+  const inherited: PublicationPolicy = {};
+  Object.setPrototypeOf(inherited, { validateRecord: () => ({ kind: "allow" }) });
+  expect(() => new CommitPublisher({ uri: "amqp://localhost", exchange: "e" }, undefined, inherited)).toThrow("plain options");
+});
+test("removed schema code is rejected by receipt and diagnostic decoders", () => {
+  expect(() => { validateRejection("unsupported-schema"); }).toThrow("rejection code");
+  expect(() => { validateCompletion("rejected", "unsupported-schema"); }).toThrow("diagnostic");
+  for (const diagnostic of ["source-invalid", "publication-failed", "lease-expired", "message-too-large"]) {
+    expect(() => { validateCompletion("rejected", diagnostic); }).not.toThrow();
+  }
+});
+test("serialization cannot launder a captured eligible rejection", () => {
   let captured: unknown;
   try { encodePublication(commit(1), rejectPolicy); } catch (error: unknown) { captured = error; }
-  expect(eligible({ validateRecord: () => { throw captured; } })).toBeUndefined();
   const source = { ...commit(1), toJSON: () => { throw captured; } };
   try { encodePublication(source); } catch (error: unknown) { expect(rejectionCode(error)).toBeUndefined(); }
 });

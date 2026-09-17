@@ -15,6 +15,7 @@ export interface DeliveryOptions {
   collection: string;
   feed: string;
   quarantine?: QuarantineConfig;
+  prepareQuarantine: () => Promise<void>;
 }
 export async function deliverOutcome(commit: ICommit | undefined, progress: DurableProgress,
   options: DeliveryOptions): Promise<DeliveryOutcome> {
@@ -22,18 +23,16 @@ export async function deliverOutcome(commit: ICommit | undefined, progress: Dura
   if (!commit || !quarantine?.enabled) {
     return { kind: commit ? "dispatched" : "transition", state: await deliver(commit, progress, publisher, store, collection, feed) };
   }
-  const reference = sourceReference(commit, { feed, sourceCollection: collection });
-  let captured = await quarantine.store.find(reference);
-  if (!captured) {
-    try { await publisher.publish(commit, collection); }
-    catch (error: unknown) {
-      const code = rejectionCode(error);
-      if (!code) throw error;
-      captured = await quarantine.store.capture(reference, code);
-    }
+  try { await publisher.publish(commit, collection); }
+  catch (error: unknown) {
+    const code = rejectionCode(error);
+    if (!code) throw error;
+    await options.prepareQuarantine();
+    const reference = sourceReference(commit, { feed, sourceCollection: collection });
+    const captured = await quarantine.store.capture(reference, code);
+    return acceptQuarantine(captured, progress, options, quarantine.mode ?? "continue");
   }
-  if (!captured) return { kind: "dispatched", state: await deliver(undefined, progress, publisher, store, collection, feed) };
-  return acceptQuarantine(captured, progress, options, quarantine.mode ?? "continue");
+  return { kind: "dispatched", state: await deliver(undefined, progress, publisher, store, collection, feed) };
 }
 async function acceptQuarantine(captured: QuarantineRecord, progress: DurableProgress,
   options: DeliveryOptions, mode: "pause" | "continue"): Promise<DeliveryOutcome> {

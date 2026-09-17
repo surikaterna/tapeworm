@@ -51,7 +51,6 @@ export class MongoQuarantineStore implements QuarantineStore {
     }
     const existing = await this.find(reference);
     if (!existing) throw new Error("Quarantine capture missing");
-    if (existing.code !== code) throw new Error("Quarantine rejection metadata mismatch");
     await this.collection.updateOne({ ...identity, observations: { $lt: 2147483647 } },
       { $inc: { observations: 1 } }, { collation: simpleCollation });
     const current = await this.find(reference);

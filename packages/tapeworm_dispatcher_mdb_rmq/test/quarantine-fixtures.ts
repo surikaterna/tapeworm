@@ -4,10 +4,16 @@ import { encodePublication, type PublicationPolicy, type RejectionCode } from ".
 import type { AttemptResult, ClaimResult, DiagnosticCode, QuarantineRecord, QuarantineScope,
   QuarantineStore, RedriveRequest, SourceReference } from "../src/quarantine/types";
 import { assertReference } from "../src/quarantine/validation";
+import { commit } from "./fixtures";
 
 export const scope: QuarantineScope = { feed: "feed", sourceCollection: "commits" };
-export const request = { actor: "operator", reason: "schema repaired" };
-export const rejectPolicy: PublicationPolicy = { validateRecord: () => ({ kind: "reject", code: "unsupported-schema" }) };
+export const request = { actor: "operator", reason: "transport limit raised" };
+export const rejectPolicy: PublicationPolicy = { maxMessageBytes: 1 };
+export function oversizedCommit(number: number): ICommit {
+  return { ...commit(number), events: [{ id: "00000000-0000-4000-8000-000000000001", type: "LargeEvent",
+    payload: "🐛".repeat(2048) }] };
+}
+export const mixedPolicy: PublicationPolicy = { maxMessageBytes: encodePublication(oversizedCommit(1)).length - 1 };
 export class PolicyPublisher implements PublisherPort {
   published: ICommit[] = [];
   calls = 0;
@@ -41,6 +47,7 @@ export class MemoryQuarantine implements QuarantineStore {
   capture(reference: SourceReference, code: RejectionCode): Promise<QuarantineRecord> {
     this.writes++;
     if (this.failure) return Promise.reject(new Error("Capture failed"));
+    if (this.record) assertReference(this.record.reference, reference);
     this.record ??= { id: "000000000000000000000001", version: 1, reference, code,
       status: "quarantined", createdAt: new Date(), observations: 1, attempts: [] };
     return Promise.resolve(this.record);

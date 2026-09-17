@@ -280,16 +280,34 @@ configuration, or with `enabled:false`, delivery remains fail-closed and no
 quarantine index initialization or lookup is performed. There is no automatic
 store provisioning, retention assertion, or CLI enablement.
 
-An optional `publication` policy can reject known unsupported schemas
-or enforce `maxMessageBytes` (positive integer, actual UTF-8 JSON bytes). Without
-quarantine, those rejections still fail closed. With quarantine enabled, only
-these two deliberate **prepublication** rejections qualify. One deterministic
-rejection suffices; retrying it fifty times is not required. Broker/network/auth,
-mandatory returns, nacks, timeouts, backpressure, invalid source identity, malformed
-validator results, hook exceptions and arbitrary serializer/TypeError failures
-are **not poison**: they still retry/stop without checkpoint advancement. A failed
-quarantine write also cannot advance the checkpoint. Domain fields remain application-owned `unknown` values;
-validate them in the hook without coercing them into an assumed schema.
+The optional transport-only `publication` policy supports only `maxMessageBytes`
+(positive safe integer, actual encoded UTF-8 JSON bytes; equality is allowed).
+There is **no default broker-size guess** and no business-schema gate. Only this
+configured **prepublication** size rejection qualifies for quarantine. Without
+quarantine it fails closed. One deterministic rejection suffices; retrying it
+fifty times is not required. Broker/network/auth, mandatory returns, nacks,
+timeouts, backpressure, invalid source identity and arbitrary serialization or
+TypeError failures are **not poison**: they still retry/stop without checkpoint
+advancement. Readiness, capture or checkpoint failures likewise cannot authorize
+skipping a rejected record. Source applications and consumers own business-schema
+validation; domain fields remain application-owned `unknown` values.
+
+If `maxMessageBytes` is omitted, no encoded-size rejection threshold is applied,
+and this transport-only quarantine cannot classify new oversized messages, even
+when quarantine is enabled. Choose a threshold at or below the destination
+broker's accepted message-size limit, accounting for its size-accounting policy.
+There is no automatic discovery of the broker limit.
+
+**Cold path (redemeine-rq8p, draft PR #44):** healthy publication performs no
+quarantine reads/writes, source-index readiness checks, reference fingerprinting
+or BSON canonicalization. The live/history input boundary validates the transport
+envelope once; the typed publisher trusts that `ICommit` and does not decode or
+reconstruct its events again. Direct publisher callers must provide validated
+data. Each ordinary publication attempt JSON-stringifies and builds its UTF-8
+Buffer once, then compares the actual byte length. This avoids per-record database
+round trips and full-payload copies/hashes unrelated to healthy delivery; it is
+not a messages/second or 100M-capacity guarantee. Configuration shape checks run
+at construction, not per message. Unknown/removed publication options fail clearly.
 
 The reference store writes majority+journal acknowledgements and reads primary/
 majority. It stores no second payload: a BSON-derived SHA-256 fingerprint covers
@@ -297,9 +315,15 @@ the validated commit, including domain fields and BSON types; only Mongo's
 top-level `_id` is excluded. Canonical field ordering avoids `_id` insertion/order
 differences. Capture is unique by feed/source collection/commit id; redrive uses
 the original source and Rabbit `messageId`. No payload substitution is supported.
-Quarantine initialization awaits its own indexes. The source must **already have
-a unique, nonpartial, nonsparse, simple-collation `{id:1}` index**; the SDK checks
-but never builds that potentially expensive production index. Source fetches are
+On the first eligible rejection, lazy readiness checks the source index, then
+initializes the quarantine store before fingerprinting and idempotent capture.
+Successful readiness is reused; a failed attempt resets readiness for retry.
+These prerequisites apply to **poison capture/redrive, not healthy startup**:
+unavailable quarantine metadata/storage cannot block otherwise healthy delivery.
+The source must **already have a unique, nonpartial, nonsparse, simple-collation
+`{id:1}` index**; the SDK checks but never builds that potentially expensive
+production index. Quarantine methods still await their own safe initialization.
+Source fetches are
 id-indexed, and inspection uses scoped keyset indexes without reading payloads.
 
 Quarantine identity is **binary and case/accent-sensitive**, regardless of the
@@ -339,6 +363,8 @@ operator remediation; never delete history to bypass the bound.
 
 Production SDK setup and inspection (assumes `db` is a connected Mongo `Db`, destination
 topology provisioned, and the source id index provisioned by your schema owner):
+the example's `1_000_000`-byte threshold is illustrative, not a default or a broker
+recommendation; replace it with the destination-appropriate threshold described above.
 
 ```ts
 import {
@@ -358,8 +384,6 @@ const store = new MongoQuarantineStore(db, "cdc_quarantine", {
 });
 const publication: PublicationPolicy = {
   maxMessageBytes: 1_000_000,
-  validateRecord: (commit) => commit.events.every((event) => event.type === "SupportedEvent")
-    ? { kind: "allow" } : { kind: "reject", code: "unsupported-schema" },
 };
 const relayConfig: DispatcherConfig = {
   ...config, publication,
@@ -380,7 +404,7 @@ try {
   if (page.after) console.log(await service.list({ status: "quarantined", after: page.after }));
   const selected = page.records[0];
   if (selected) console.log(await service.redrive(selected.id, {
-    actor: "operator@example.org", reason: "Schema support deployed; incident reviewed",
+    actor: "operator@example.org", reason: "Transport limit raised; incident reviewed",
   }));
 } finally {
   await service.close(); // stops new attempts and drains active calls
@@ -401,11 +425,27 @@ To opt into stopping, set
 `{ enabled:true, store, sourceRetention:"immutable-until-resolved", mode:"pause" }`.
 Explicit pause durably captures, emits `quarantined` with `checkpointAdvanced:false`, then
 halts immediately with `QuarantinePaused`: no subsequent record and no checkpoint
-advancement. Fix the policy/cause, redrive explicitly, then restart a **new** relay
-instance. A matching published quarantine record advances CDC without publishing
-again, emitting a quarantine resolution event (`resolution:"published"`), never a
-false `dispatched`. A permanent policy rejection cannot be redriven successfully
-until the cause is fixed. Store or checkpoint failure leaves replay recoverable.
+advancement. Fix the size limit/cause, then restart a **new** relay instance or
+redrive explicitly. **Ordinary source replay always re-evaluates publication**:
+if now acceptable it publishes/confirms/checkpoints even when an old receipt is
+quarantined, claimed or published. It does not read or update that receipt. Normal
+replay and operator redrive can therefore duplicate the same stable message id;
+consumer idempotency is required, and manual-only redelivery is not promised.
+
+Only while the record is **currently size-rejected** does cold idempotent capture
+consult its prior receipt. An existing published status and operator audit remain
+intact: that resolved exception permits checkpoint advancement even in pause mode,
+emitting `quarantined` with `resolution:"published"`, not `dispatched`. Unresolved
+capture follows pause/continue as configured. Changed source fingerprints fail
+closed rather than silently aliasing an earlier identity. Capture precedes
+checkpoint; checkpoint failure retries capture without resetting status/audit.
+
+**Unreleased API rework:** redemeine-rq8p removes the former draft business-validator
+option/decision type and schema-rejection code, without a legacy decoder shim.
+This is not a released-data migration. If an operator deployed an earlier draft
+and retained its quarantine data, stop and plan that migration before upgrading.
+The original split's byte-equivalence target is superseded for this B-only rework;
+A/C changes remain unchanged. PR #44 still requires independent audit/qualification.
 
 **Previous local draft migration:** the unpublished pause-by-default policy is
 superseded by redemeine-ihn0. Add explicit `mode:"pause"` to retain that behavior.
@@ -414,8 +454,11 @@ select the mode. Existing true-valued callers remain valid with either mode;
 omit the field in new code. A supplied false or other nontrue value is rejected,
 even when quarantine is disabled; use `mode:"pause"`, not a false flag, to stop.
 
-Operational EventEmitter
-notifications are not transactional audit; the persistent document is authoritative.
+Operational EventEmitter notifications are not transactional audit. A persistent
+quarantine document is a historical rejection/operator-attempt receipt, **not a
+delivery ledger, global pending truth or proof that the source was never delivered**.
+Normal successful replay does not synchronize operator status: a list entry may
+remain quarantined/claimed after source delivery.
 Listeners must not throw: a throw propagates to delivery/retry and cannot undo an
 already durable checkpoint. Never treat event receipt as an atomic business effect.
 
@@ -428,6 +471,10 @@ unknown before creating a new one; stale/expired owners cannot record completion
 Broker confirmation precedes persisted success. Lost confirms or completion-write
 failure remain uncertain and may require a later explicit retry with the same
 message id. Redrive **never writes the primary CDC checkpoint**.
+The optional operator service verifies source immutability and preflights encoding
+before calling the supplied publisher, which may encode again. That cold operator
+cost is deliberate; the once-only encoding claim concerns normal publication,
+not redrive. There is no automatic sweep or new publisher pipeline.
 
 This trusted in-process SDK is not an authorization service: actor/reason are audit
 metadata, not authentication. The caller owns RBAC, operator authorization and

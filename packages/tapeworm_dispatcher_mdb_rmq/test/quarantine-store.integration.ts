@@ -11,21 +11,21 @@ import { eventually, mongo } from "./services";
 test("unique identity capture is concurrent-idempotent, bounded, reference-only and never resets published history", async () => {
   const f = await quarantineFixture();
   try {
-    const results = await Promise.all(Array.from({ length: 12 }, () => f.store.capture(f.reference, "unsupported-schema")));
+    const results = await Promise.all(Array.from({ length: 12 }, () => f.store.capture(f.reference, "message-too-large")));
     expect(new Set(results.map((item) => item.id)).size).toBe(1);
     expect(await f.mongodb.db.collection("quarantine").countDocuments()).toBe(1);
     const claimed = await f.store.claim(f.captured.id, request);
     if (claimed.kind !== "claimed") throw new Error("Claim missing");
     expect(await f.store.finish(f.captured.id, claimed.token, "published")).toBe(true);
-    const replay = await f.store.capture(f.reference, "unsupported-schema");
+    const replay = await f.store.capture(f.reference, "message-too-large");
     expect(replay.status).toBe("published"); expect(replay.attempts).toHaveLength(1);
     expect(replay.observations).toBe(14);
-    await expect(f.store.capture({ ...f.reference, fingerprint: "a".repeat(64) }, "unsupported-schema")).rejects.toThrow("fingerprint");
+    await expect(f.store.capture({ ...f.reference, fingerprint: "a".repeat(64) }, "message-too-large")).rejects.toThrow("fingerprint");
     const doc: unknown = await f.mongodb.db.collection("quarantine").findOne({});
     expect(BSON.calculateObjectSize(record(doc))).toBeLessThan(8192);
     expect(record(doc)).not.toHaveProperty("events");
     await f.mongodb.db.collection("quarantine").updateOne({}, { $set: { observations: 2147483647 } });
-    expect((await f.store.capture(f.reference, "unsupported-schema")).observations).toBe(2147483647);
+    expect((await f.store.capture(f.reference, "message-too-large")).observations).toBe(2147483647);
   } finally { await f.mongodb.close(); }
 });
 test("scoped keyset list uses bounded indexed plans and rejects cross-feed cursors", async () => {
@@ -89,7 +89,7 @@ test("all 100 manual attempts remain audited, further claims refused, metadata s
     for (let n = 0; n < 100; n++) {
       const claim = await f.store.claim(f.captured.id, { actor: "a".repeat(128), reason: "r".repeat(1024) });
       if (claim.kind !== "claimed") throw new Error("Unexpected claim refusal");
-      expect(await f.store.finish(f.captured.id, claim.token, "rejected", "unsupported-schema")).toBe(true);
+      expect(await f.store.finish(f.captured.id, claim.token, "rejected", "message-too-large")).toBe(true);
     }
     expect(await f.store.claim(f.captured.id, request)).toEqual({ kind: "attempt-limit" });
     const doc: unknown = await f.mongodb.db.collection("quarantine").findOne({});

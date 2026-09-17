@@ -15,11 +15,11 @@ export function validateRequest(request: RedriveRequest): void {
   boundedText(request.reason, 1024);
 }
 export function validateRejection(code: unknown): void {
-  if (code !== "unsupported-schema" && code !== "message-too-large") throw new Error("Invalid quarantine rejection code");
+  if (code !== "message-too-large") throw new Error("Invalid quarantine rejection code");
 }
 export function validateCompletion(result: unknown, diagnostic: unknown): void {
   if (result !== "published" && result !== "rejected" && result !== "outcome-unknown") throw new Error("Invalid quarantine result");
-  const codes: unknown[] = ["unsupported-schema", "message-too-large", "source-invalid", "publication-failed", "lease-expired"];
+  const codes: unknown[] = ["message-too-large", "source-invalid", "publication-failed", "lease-expired"];
   if (diagnostic !== undefined && !codes.includes(diagnostic)) throw new Error("Invalid quarantine diagnostic");
 }
 export function assertScope(actual: QuarantineScope, expected: QuarantineScope): void {

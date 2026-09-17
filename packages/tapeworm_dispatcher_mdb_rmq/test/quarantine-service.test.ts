@@ -13,7 +13,7 @@ async function setup() {
   const store = new MemoryQuarantine(scope);
   const publisher = new PolicyPublisher();
   const source = { scope, initialize: () => Promise.resolve(), read: () => Promise.resolve(commit(1)) };
-  const captured = await store.capture(sourceReference(commit(1), scope), "unsupported-schema");
+  const captured = await store.capture(sourceReference(commit(1), scope), "message-too-large");
   const options = { ...config, store, publisher, source, sourceRetention: "immutable-until-resolved" as const };
   return { store, publisher, source, captured, options };
 }
@@ -58,7 +58,7 @@ test("simultaneous operator attempts are busy and close drains without closing c
 test("current permanent policy and missing source are audited rejections without network", async () => {
   const { options, publisher, captured, store, source } = await setup();
   const service = new QuarantineService({ ...options, publication: rejectPolicy });
-  expect(await service.redrive(captured.id, request)).toEqual({ kind: "rejected", code: "unsupported-schema" });
+  expect(await service.redrive(captured.id, request)).toEqual({ kind: "rejected", code: "message-too-large" });
   source.read = () => Promise.reject(new Error("credentials must not escape"));
   expect(await service.redrive(captured.id, request)).toEqual({ kind: "rejected", code: "source-invalid" });
   expect(publisher.calls).toBe(0); expect(store.record?.status).toBe("quarantined"); await service.close();

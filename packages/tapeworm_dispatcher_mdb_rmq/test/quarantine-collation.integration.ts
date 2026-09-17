@@ -40,10 +40,10 @@ test.each(scopePairs)("binary quarantine scope isolates list, find, capture and 
   try {
     await a.initialize(); await b.initialize();
     const ar = sourceReference(commit(1), left); const br = sourceReference(commit(1), right);
-    const first = await a.capture(ar, "unsupported-schema");
+    const first = await a.capture(ar, "message-too-large");
     expect((await b.list()).records).toEqual([]); expect(await b.find(br)).toBeNull();
-    const other = await b.capture(br, "unsupported-schema"); expect(other.id).not.toBe(first.id);
-    await a.capture(sourceReference(commit(2), left), "unsupported-schema");
+    const other = await b.capture(br, "message-too-large"); expect(other.id).not.toBe(first.id);
+    await a.capture(sourceReference(commit(2), left), "message-too-large");
     for (const status of [undefined, "quarantined"] as const) {
       const page = await a.list({ limit: 1, status });
       expect(page.records.map((value) => value.id)).toEqual([first.id]); expect(page.after).toBeDefined();
@@ -51,7 +51,7 @@ test.each(scopePairs)("binary quarantine scope isolates list, find, capture and 
       expect(next.records.map((value) => value.reference.commitId)).toEqual(["commit-2"]);
       expect((await b.list({ status })).records.map((value) => value.id)).toEqual([other.id]);
     }
-    expect((await a.capture(ar, "unsupported-schema")).observations).toBe(2);
+    expect((await a.capture(ar, "message-too-large")).observations).toBe(2);
     expect((await b.find(br))?.observations).toBe(1);
     assertBinaryCommands(f.commands);
     const indexes: unknown[] = await f.db.collection("quarantine").listIndexes().toArray();
@@ -64,13 +64,13 @@ test.each(scopePairs)("binary quarantine claims/completions cannot cross equival
   const b = new MongoQuarantineStore(f.db, "quarantine", right);
   try {
     await a.initialize(); await b.initialize();
-    const first = await a.capture(sourceReference(commit(1), left), "unsupported-schema");
+    const first = await a.capture(sourceReference(commit(1), left), "message-too-large");
     expect(await b.claim(first.id, request)).toEqual({ kind: "missing" });
     const claimed = await a.claim(first.id, request);
     if (claimed.kind !== "claimed") throw new Error("Missing owned claim");
     expect(await b.claim(first.id, request)).toEqual({ kind: "missing" });
     expect(await b.finish(first.id, claimed.token, "published")).toBe(false);
-    const other = await b.capture(sourceReference(commit(1), right), "unsupported-schema");
+    const other = await b.capture(sourceReference(commit(1), right), "message-too-large");
     const own = await b.claim(other.id, request);
     if (own.kind !== "claimed") throw new Error("Missing distinct claim");
     expect(await b.finish(other.id, claimed.token, "published")).toBe(false);
@@ -78,7 +78,7 @@ test.each(scopePairs)("binary quarantine claims/completions cannot cross equival
     expect(await a.finish(first.id, wrongToken === claimed.token ? `${wrongToken}A` : wrongToken, "published")).toBe(false);
     expect(await a.finish(first.id, claimed.token, "published")).toBe(true);
     expect(await b.claim(first.id, request)).toEqual({ kind: "missing" });
-    expect(await b.finish(other.id, own.token, "rejected", "unsupported-schema")).toBe(true);
+    expect(await b.finish(other.id, own.token, "rejected", "message-too-large")).toBe(true);
     expect(await a.finish(first.id, claimed.token, "published")).toBe(false);
     assertBinaryCommands(f.commands);
   } finally { await f.close(); }
@@ -92,7 +92,7 @@ test("binary quarantine commit ids preserve case and accent distinctions within 
     for (const [n, id] of ids.entries()) {
       const reference = sourceReference({ ...commit(n), id }, scope);
       expect(await store.find(reference)).toBeNull();
-      const captured = await store.capture(reference, "unsupported-schema");
+      const captured = await store.capture(reference, "message-too-large");
       expect((await store.find(reference))?.id).toBe(captured.id);
     }
     expect((await store.list()).records.map((value) => value.reference.commitId)).toEqual(ids);
@@ -109,7 +109,7 @@ test.each(["quarantine_identity", "legacy_unique", "quarantine_scope_id", "legac
     const store = new MongoQuarantineStore(f.db, "quarantine", scope);
     const reference = sourceReference(commit(1), scope); const id = new ObjectId().toHexString();
     const calls = [() => store.initialize(), () => store.find(reference), () => store.list(),
-      () => store.capture(reference, "unsupported-schema"), () => store.claim(id, request), () => store.finish(id, "token", "published")];
+      () => store.capture(reference, "message-too-large"), () => store.claim(id, request), () => store.finish(id, "token", "published")];
     f.commands.length = 0;
     for (const call of calls) await expect(call()).rejects.toThrow("operator index migration");
     expect(f.commands.every((command) => command.listIndexes === "quarantine")).toBe(true);
@@ -124,7 +124,7 @@ test("unrelated linguistic nonunique indexes do not block binary quarantine init
     await collection.createIndex({ code: 1 }, { name: "operator_diagnostics" });
     const store = new MongoQuarantineStore(f.db, "quarantine", scope);
     const reference = sourceReference(commit(1), scope);
-    const captured = await store.capture(reference, "unsupported-schema");
+    const captured = await store.capture(reference, "message-too-large");
     expect((await store.find(reference))?.id).toBe(captured.id);
     const indexes: unknown[] = await collection.listIndexes().toArray();
     expect(indexes.map(record).find((index) => index.name === "operator_diagnostics")?.collation).toBeDefined();

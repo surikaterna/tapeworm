@@ -5,6 +5,7 @@ import { quarantineFixture } from "./quarantine-integration-fixture";
 import { eventually, rabbit } from "./services";
 import { commit, token } from "./fixtures";
 import { record } from "../src/validation";
+import { mixedPolicy, oversizedCommit } from "./quarantine-fixtures";
 
 test.each(["changeStream", "oplog"] as const)("dispatcher pause is terminal and emits no dispatched success in %s", async (mode) => {
   const mq = await rabbit();
@@ -35,15 +36,14 @@ test.each([["changeStream", undefined], ["oplog", undefined], ["changeStream", "
   const checkpoints = new MongoResumeTokenStore(f.mongodb.db, "checkpoint");
   const quarantine: QuarantineConfig = { enabled: true, store: f.store, sourceRetention: "immutable-until-resolved",
     ...(quarantineMode ? { mode: quarantineMode } : {}) };
-  const dispatcher = new Dispatcher({ ...f.config, resumeTokenStore: checkpoints, quarantine, publication: {
-    validateRecord: (value) => value.id === "commit-2" ? { kind: "reject", code: "unsupported-schema" } : { kind: "allow" } } });
+  const dispatcher = new Dispatcher({ ...f.config, resumeTokenStore: checkpoints, quarantine, publication: mixedPolicy });
   const events: QuarantinedEvent[] = []; const dispatched: string[] = [];
   dispatcher.on("quarantined", (event) => { events.push(event); });
   dispatcher.on("dispatched", (value) => { dispatched.push(value.id); }); dispatcher.on("error", () => {});
   const running = dispatcher.start(); const outcome = running.catch((error: unknown) => error);
   try {
     await eventually(async () => Boolean((await checkpoints.load())?.primary));
-    await f.mongodb.db.collection("commits").insertOne(commit(2));
+    await f.mongodb.db.collection("commits").insertOne(oversizedCommit(2));
     await f.mongodb.db.collection("commits").insertOne(commit(3));
     await eventually(async () => (await checkpoints.load())?.lastCommitToken === token(3));
     expect(quarantine).not.toHaveProperty("acceptOrderingGaps");

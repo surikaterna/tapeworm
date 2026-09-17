@@ -83,6 +83,7 @@ export class CommitPublisher {
 
   private isStopped(): boolean { return this.stopped; }
 
+  /** Requires a validated ICommit; application event schemas belong to the source/consumer. */
   async publish(commit: ICommit, collectionName: string): Promise<void> {
     if (this.stopped) throw new Error("Publisher stopped");
     const confirmed = this.confirmed;
