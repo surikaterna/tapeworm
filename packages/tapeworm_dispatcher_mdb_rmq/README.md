@@ -185,7 +185,7 @@ payloads as `unknown` for application schema validation.
 last acknowledged position, chosen range, scan cursor and live boundary. Export
 these to monitoring, compute recovery age/outage exposure, count scan/live
 publications and duplicate attempts, and alert on fallback/exhaustion. Do not
-label this as a measured unknown-miss count.
+label this as a measured unknown-miss count. The CLI logs recovery events.
 
 ## CLI
 
@@ -202,19 +202,36 @@ Optional flags: `resume-collection` (default `tw_dispatcher_state`), `watch-mode
 (`changeStream` default or `oplog`), `tenant`, `checkpoint-key`, `feed-id`,
 `adopt-legacy-checkpoint` (`true`/`false`, default false). All flags have uppercase
 underscore environment equivalents, e.g. `CHECKPOINT_KEY`; CLI takes precedence.
-Supply explicit key/feed identities and use adoption only after the migration
-checks above.
+The CLI warns when legacy key/feed defaults are used. Mongo ownership covers all
+initialization, including invalid configuration after connection.
 
-### Signal shutdown
+### Signal shutdown and the ten-second grace budget
 
-The CLI retains its existing shutdown policy: signal handlers are installed before
-awaiting the long-running `start()`. The first SIGINT/SIGTERM attempts dispatcher
-stop then Mongo close, and exits 0. A repeated signal or a ten-second shutdown
-timeout forces exit 1. Initialization/fatal errors also exit 1. This CLI does not
-guarantee cleanup after initialization/fatal errors, and logged stop/close failures
-do not change the signal path's exit 0. A forced process exit does not prove an
-already-issued Mongo write was aborted; fence the old owner and inspect durable
-state before restarting. Consumers must tolerate stable-identity duplicates.
+The first SIGINT/SIGTERM, normal completion, or failure starts **one absolute
+10,000ms shutdown budget**. There is no timer while healthy; repeated signals do
+not extend the budget or invoke stop/close again. Dispatcher stop begins without
+waiting for `start()` to settle. Successful stop allows the in-flight operation to
+drain within that budget before closing Mongo; rejected stop immediately attempts
+Mongo close. Graceful completion requires both the active operation and cleanup
+to settle, not merely a resolved `stop()`.
+
+At the deadline, even a pending stop cannot prevent the Mongo close attempt and
+removal of owned signal listeners. The CLI then logs the timeout and **exits 124**
+as a last resort for still-pending work/driver handles. It does not force an early
+exit while the drain can still complete. Normal signal drain exits 0; ordinary
+initialization/operation errors retain voluntary exit 1. The lifecycle helper
+never calls `process.exit`: the CLI host alone owns the deadline exit policy.
+Its optional `shutdownTimeoutMs`, `onDeadline`, and `onLateError` hooks allow
+deterministic lifecycle tests without adding CLI flags. Late promise failures
+remain observed, and timeout errors preserve known primary/cleanup failures.
+
+Confirmation followed by a blocked/unsaved checkpoint can cause stable-identity
+duplicates on restart. **Process exit or a client-close attempt does not prove a
+Mongo write was aborted**: an already-issued checkpoint may complete after a lock
+or outage is resolved. Fence the old owner, let outstanding server operations
+settle, inspect durable state, then restart from that checkpoint. Never advance
+or delete it merely to bypass a shutdown fault. This policy preserves the existing
+at-least-once crash contract; it adds no exactly-once guarantee.
 
 ## Explicit oplog mode
 
@@ -260,21 +277,30 @@ Wait for Mongo primary and Rabbit readiness. `TEST_MONGODB_URI` and
 `TEST_RABBITMQ_URI` override normal test endpoints; `TEST_EXPIRY_MONGODB_URI` must
 point at a dedicated small-oplog test replica set. Its startup storage checkpoint
 interval (`syncdelay`) must be one second for bounded rollover.
-Missing services **fail**, not skip. Tests create/drop isolated databases, queues
-and exchanges. Integration includes real empty-collection operationTime capture,
-finite IXSCAN explain, nonunique UUID ties, history/live overlap, accepted lower-UUID
-omission, Mongo history-expiry classification, scoped BSON checkpoints, Rabbit
-mandatory returns/channel reconnect, and actual child-process SIGKILL between
-broker confirmation and checkpoint in both watch modes. Expiry tests capture a
-real resume token/server boundary, write bounded noise to roll a dedicated 1MB oplog
-past that position, then verify actual server history-expiry and recovery.
-This is not a multi-day outage or scale benchmark.
+Missing services **fail**, not skip.
+Use dedicated test services, never shared or production endpoints: the shutdown
+test temporarily fsync-locks the entire normal Mongo server, not just its test database.
+Tests create/drop isolated databases, queues and exchanges. Integration includes
+real empty-collection operationTime capture, finite IXSCAN explain, nonunique UUID
+ties, history/live overlap, accepted lower-UUID omission, Mongo history-expiry
+classification, scoped BSON checkpoints, Rabbit mandatory returns/channel reconnect,
+and actual child-process SIGKILL between broker confirmation and checkpoint in
+both watch modes. A separate real-Mongo subprocess regression verifies that an
+invalid database name exits voluntarily with a nonzero status, without watchdog
+termination. The shutdown regression fsync-locks an isolated Mongo server, proves
+a confirmed commit's checkpoint update is `waitingForLock`, and requires actual
+CLI exit 124 near ten seconds **before unlocking**. It then lets outstanding writes
+settle with a majority visibility barrier and proves restart delivery/identity;
+it does not assume the timed-out write was aborted. Expiry tests capture a real
+resume token/server boundary, write
+bounded noise to roll a dedicated 1MB oplog past that position, then verify actual
+server history-expiry and recovery. This is not a multi-day outage or scale benchmark.
 
 `test:consumer` packs and installs built declarations outside the workspace under
 `/tmp/opencode`, then compiles positive and negative type fixtures without aliases.
 `check` uses strict TS (including tests/CLI, no unchecked indexing, no skipped
-library checks). Unit tests use narrow typed ports, not casts of whole Mongo Db or
-AMQP channels. Root `check` also runs the core package's existing Biome gate.
+library checks) and type-aware unsafe-operation lint. Unit tests use narrow typed
+ports, not casts of whole Mongo Db or AMQP channels.
 
 These are correctness regressions, **not production certification**, 100M-record
 capacity measurements, replica election/rollback qualification, broker disk-loss
