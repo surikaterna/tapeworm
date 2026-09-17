@@ -5,6 +5,7 @@ import type { HistoryPort } from "./history";
 import type { LiveItem, LivePort } from "./live-source";
 import { HistoryExpired, RecoveryExhausted } from "./recovery-errors";
 import { decodeState, timestamp, uuid } from "./validation";
+import { QuarantinePaused } from "./quarantine/errors";
 
 export type CommitHandler = (commit: ICommit, resumeToken: Record<string, unknown>) => Promise<void>;
 export type ProgressHandler = (commit: ICommit | undefined, progress: DurableProgress) => Promise<void>;
@@ -71,7 +72,7 @@ export class RecoveryWatcher extends EventEmitter<WatcherEvents> implements Dura
       catch (cause: unknown) {
         if (this.isStopped()) return;
         const error = cause instanceof Error ? cause : new Error(String(cause));
-        if (error instanceof RecoveryExhausted || ++failures >= (this.config.maxRetries ?? 50)) {
+        if (error instanceof RecoveryExhausted || error instanceof QuarantinePaused || ++failures >= (this.config.maxRetries ?? 50)) {
           this.emit("fatal", error);
           throw error;
         }

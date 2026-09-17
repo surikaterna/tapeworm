@@ -5,7 +5,10 @@ import { ChangeStreamWatcher } from "./watcher";
 import type { DurableCommitWatcher } from "./watcher";
 import { OplogWatcher } from "./oplog-watcher";
 import { CommitPublisher } from "./publisher";
-import { deliver } from "./delivery";
+import { deliverOutcome } from "./quarantine/delivery";
+import { QuarantinePaused } from "./quarantine/errors";
+import { validateQuarantine } from "./quarantine/validation";
+import { MongoQuarantineSourceReader } from "./quarantine/source-reader";
 import { decodeState } from "./validation";
 import { checkpointFeed } from "./feed";
 
@@ -21,8 +24,9 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
   constructor(private readonly config: DispatcherConfig) {
     super();
     this.feed = checkpointFeed(config);
+    validateQuarantine(config.quarantine, { feed: this.feed, sourceCollection: config.mongodb.collection });
     this.watcher = config.watchMode === "oplog" ? new OplogWatcher(config.mongodb) : new ChangeStreamWatcher(config.mongodb);
-    this.publisher = new CommitPublisher(config.rabbitmq, config.tenant);
+    this.publisher = new CommitPublisher(config.rabbitmq, config.tenant, config.publication);
     this.watcher.on("fallback", () => this.emit("fallback"));
     this.watcher.on("recovery", (event: import("./types").RecoveryEvent) => this.emit("recovery", event));
     this.watcher.on("error", (error: Error) => this.emit("error", error));
@@ -43,6 +47,10 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
     this.running = true;
     try {
       const state = await this.load();
+      if (this.config.quarantine?.enabled) {
+        await new MongoQuarantineSourceReader(this.config.mongodb.db, this.config.mongodb.collection, this.feed).initialize();
+        await this.config.quarantine.store.initialize();
+      }
       await this.watcher.connect();
       await this.publisher.connect();
       if (this.isStopped()) return;
@@ -58,8 +66,15 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
   }
 
   private async handle(commit: ICommit | undefined, progress: DurableProgress): Promise<void> {
-    await deliver(commit, progress, this.publisher, this.config.resumeTokenStore, this.config.mongodb.collection, this.feed);
-    if (commit) this.emit("dispatched", commit);
+    try {
+      const result = await deliverOutcome(commit, progress, { publisher: this.publisher, store: this.config.resumeTokenStore,
+        collection: this.config.mongodb.collection, feed: this.feed, quarantine: this.config.quarantine });
+      if (result.kind === "dispatched" && commit) this.emit("dispatched", commit);
+      if (result.kind === "quarantined") this.emit("quarantined", result.event);
+    } catch (error: unknown) {
+      if (error instanceof QuarantinePaused) this.emit("quarantined", error.event);
+      throw error;
+    }
   }
 
   private isStopped(): boolean { return this.stopped; }

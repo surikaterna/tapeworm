@@ -3,16 +3,26 @@
 MongoDB-to-RabbitMQ CDC relay for Tapeworm commits. Change streams are the default;
 direct oplog tailing is an explicit, weaker-durability option.
 
+For business-critical distribution, configure durable quarantine through the SDK:
+**enabled quarantine continues by default after durable capture of eligible poison**.
+Use `mode:"pause"` only when stopping is intentional. Absent/disabled quarantine
+remains fail-closed; the SDK cannot invent a store or a source-retention policy.
+The CLI does not provision or enable quarantine automatically. See the
+[production quarantine setup](#durable-poison-quarantine-sdk-redemeine-1i0g).
+
 ## Delivery contract
 
-For each admitted commit the relay performs, in order:
+With quarantine absent or disabled, for each admitted commit the
+relay performs, in order:
 
 1. Publish the complete commit with persistent delivery mode to a durable **headers** exchange.
 2. Require a publisher confirm **and no mandatory return**.
 3. Durably save the acknowledged CDC position.
 4. Emit `dispatched`.
 
-Failed publication is never skipped, including a repeatedly failing/poison commit.
+With quarantine disabled, failed publication is never skipped, including a
+repeatedly failing/poison commit. Configured default-continue and explicit-pause semantics are described in
+the [quarantine runbook](#durable-poison-quarantine-sdk-redemeine-1i0g).
 Checkpoint failure is a delivery failure too. Retrying after a confirm/checkpoint
 crash can duplicate messages. `messageId` remains `commit.id`; consumers must
 deduplicate and make effects idempotent or reconcilable. There is **no exactly-once
@@ -55,7 +65,8 @@ Fallback:
 3. Persist `recovery.phase = scan`, its original lower UUID, upper UUID and live
    boundary before publishing replay records. Use majority, index-hinted ascending
    `(lower, upper]` traversal with bounded driver batches (default 256).
-4. Save the scan UUID only after confirmed publication. The previous primary
+4. Save the scan UUID only after confirmed publication or a permitted durable
+   quarantine outcome. The previous primary
    position is not overwritten by a fake replay token. After a scan retry, restart
    **inclusively** at the saved UUID; nonunique index ties may duplicate but are not
    skipped. One session's scan has finite upper bounds, not a continuously growing tail.
@@ -63,10 +74,11 @@ Fallback:
    server boundary, inclusively. Inserts during the scan, including lower UUIDs,
    are delivered by that live cursor. History/live overlap can duplicate records.
 
-There is no in-memory live backlog or universal recovery journal. The oplog **must
-retain the original live boundary throughout replay and restart/cutover**. If that
-boundary expires during recovery the relay fails explicitly with `fatal`; it does
-not silently reset to now and loop. Increase retention/capacity and reconcile the
+There is no in-memory live backlog or universal recovery journal; opt-in quarantine
+stores only rejected-record references and audit. The oplog **must retain
+the original live boundary throughout replay and restart/cutover**. If that boundary
+expires during recovery the relay fails explicitly with `fatal`; it does not
+silently reset to now and loop. Increase retention/capacity and reconcile the
 affected interval under an operator-approved procedure before changing the checkpoint.
 
 **Accepted historical omission (redemeine-gqxm):** A allocates UUID 100; B allocates
@@ -101,7 +113,11 @@ database, collection, watch mode, exchange and tenant. A changed identity is rej
 Default identity cannot distinguish identically named resources on different
 clusters/vhosts; explicit IDs and keys are required for those deployments.
 
-## Library usage
+## Library usage without quarantine
+
+This compatibility example is fail-closed. For the availability-oriented production
+configuration, use the [enabled-quarantine example](#durable-poison-quarantine-sdk-redemeine-1i0g)
+below; it supplies the durable store and source-retention assertion explicitly.
 
 ```typescript
 import { MongoClient } from "mongodb";
@@ -130,9 +146,11 @@ finally { await dispatcher.stop(); await client.close(); }
 
 `start()` is long-running and rejects on exhaustion/fatal failure after cleanup.
 `mongodb.maxRetries` defaults to 50 failed attempts per run, with interruptible
-`retryDelayMs` (default 1000ms). A poison record is not bypassed to serve later
-records. Repair the record/routing/dependency under an explicit operational
-procedure, then restart with the same checkpoint.
+`retryDelayMs` (default 1000ms). With quarantine disabled, a poison record is not
+bypassed to serve later records, and no quarantine journal is created. Repair the
+record/routing/dependency under an explicit operational procedure, then restart
+with the same checkpoint. For configured durable capture and default continue-mode
+ordering gaps, follow the [quarantine runbook](#durable-poison-quarantine-sdk-redemeine-1i0g).
 
 ### Stores, compatibility and migration
 
@@ -197,6 +215,10 @@ tapeworm-dispatcher --mongodb-uri 'mongodb://localhost/?replicaSet=rs0' \
   --feed-id cluster-a/to-rabbit-a-vhost-events --tenant acme
 ```
 
+The CLI does **not** configure a quarantine store or source retention; its delivery
+therefore remains fail-closed. Configure the SDK as shown in the quarantine runbook
+to continue after durably captured eligible poison.
+
 Required flags: `mongodb-uri`, `database`, `collection`, `rabbitmq-uri`, `exchange`.
 Optional flags: `resume-collection` (default `tw_dispatcher_state`), `watch-mode`
 (`changeStream` default or `oplog`), `tenant`, `checkpoint-key`, `feed-id`,
@@ -247,6 +269,174 @@ Body: JSON of the entire validated `ICommit` including `events[]` and its domain
 fields. Properties: `contentType=application/json`, `deliveryMode=2`,
 `messageId=commit.id`, per-attempt `correlationId`, Unix `timestamp`, `mandatory=true`.
 Headers: `collection`, `partitionId`, `streamId`, optional `tenant`.
+
+## Durable poison quarantine (SDK, redemeine-1i0g)
+
+**Availability policy (redemeine-ihn0): enabled quarantine defaults to continue**
+when `mode` is omitted. Configure a durable `store` and assert source retention;
+no secondary acknowledgement flag is required. Explicit `mode:"pause"` opts into
+stopping, for example for debugging or compliance workflows. Without quarantine
+configuration, or with `enabled:false`, delivery remains fail-closed and no
+quarantine index initialization or lookup is performed. There is no automatic
+store provisioning, retention assertion, or CLI enablement.
+
+An optional `publication` policy can reject known unsupported schemas
+or enforce `maxMessageBytes` (positive integer, actual UTF-8 JSON bytes). Without
+quarantine, those rejections still fail closed. With quarantine enabled, only
+these two deliberate **prepublication** rejections qualify. One deterministic
+rejection suffices; retrying it fifty times is not required. Broker/network/auth,
+mandatory returns, nacks, timeouts, backpressure, invalid source identity, malformed
+validator results, hook exceptions and arbitrary serializer/TypeError failures
+are **not poison**: they still retry/stop without checkpoint advancement. A failed
+quarantine write also cannot advance the checkpoint. Domain fields remain application-owned `unknown` values;
+validate them in the hook without coercing them into an assumed schema.
+
+The reference store writes majority+journal acknowledgements and reads primary/
+majority. It stores no second payload: a BSON-derived SHA-256 fingerprint covers
+the validated commit, including domain fields and BSON types; only Mongo's
+top-level `_id` is excluded. Canonical field ordering avoids `_id` insertion/order
+differences. Capture is unique by feed/source collection/commit id; redrive uses
+the original source and Rabbit `messageId`. No payload substitution is supported.
+Quarantine initialization awaits its own indexes. The source must **already have
+a unique, nonpartial, nonsparse, simple-collation `{id:1}` index**; the SDK checks
+but never builds that potentially expensive production index. Source fetches are
+id-indexed, and inspection uses scoped keyset indexes without reading payloads.
+
+Quarantine identity is **binary and case/accent-sensitive**, regardless of the
+collection default collation. Non-simple collection defaults are supported: all
+quarantine indexes, reads, captures, claims, completion update pipelines and list
+queries explicitly use `{locale:"simple"}`. Source reads likewise explicitly use
+simple collation with the required simple unique id index, so `Commit-A` and
+`commit-a` (or `Cafe` and `Café`) remain distinct indexed point lookups. Collection
+defaults and source indexes are never rewritten or created by the SDK.
+
+Before quarantine data access, initialization inspects existing indexes. It rejects
+non-simple unique indexes (except the ObjectId `_id` index) and non-simple indexes
+using the SDK names `quarantine_identity`, `quarantine_scope_id`, or
+`quarantine_status_id`, with an **operator index migration** error. Merely adding
+a binary index does not remove an old case/accent-insensitive unique constraint.
+The SDK does not drop or alter user indexes. If rejected, stop/fence relay and
+operator processes, back up the quarantine data/audit, inspect index definitions
+and previously conflated identities, and have the schema owner reconcile records
+and explicitly replace the incompatible indexes with simple-collation equivalents
+before restarting. Unrelated non-simple nonunique indexes may remain. Do not
+change index definitions while owners are active; validation is cached for the
+store lifetime. This repair cannot prove or restore historical isolation for
+records previously handled with incompatible collation.
+
+`sourceRetention: "immutable-until-resolved"` is an operator assertion, not a
+retention service. Keep every unresolved source record immutable and retained for
+the entire incident/redrive period (including uncertain claims); configure source
+TTL/retention accordingly. The SDK does **not pin records**. Retain resolved source
+and quarantine audit records for your required audit period. There is no automatic
+TTL or garbage collection; monitor both collection growth and oldest unresolved
+age. Each record permits at most 100 explicit manual attempts, preserving every
+attempt rather than truncating audit. Actor (128 UTF-8 bytes), reason (1024 bytes),
+static diagnostic codes and reference metadata (4 KiB) bound document growth well
+below Mongo's 16 MiB limit; duplicate capture observations use a saturating counter,
+not an ever-growing history. At the attempt limit, stop and escalate for explicit
+operator remediation; never delete history to bypass the bound.
+
+Production SDK setup and inspection (assumes `db` is a connected Mongo `Db`, destination
+topology provisioned, and the source id index provisioned by your schema owner):
+
+```ts
+import {
+  Dispatcher, CommitPublisher, MongoResumeTokenStore, checkpointFeed,
+  MongoQuarantineStore, MongoQuarantineSourceReader, QuarantineService,
+} from "tapeworm_dispatcher_mdb_rmq";
+import type { DispatcherConfig, PublicationPolicy } from "tapeworm_dispatcher_mdb_rmq";
+
+const destination = { uri: "amqp://localhost", exchange: "commits" };
+const config = {
+  mongodb: { db, collection: "tw_master_commits" }, rabbitmq: destination,
+  feedId: "cluster-a/to-rabbit-a-vhost-events", watchMode: "changeStream" as const,
+};
+const feed = checkpointFeed(config);
+const store = new MongoQuarantineStore(db, "cdc_quarantine", {
+  feed, sourceCollection: config.mongodb.collection, leaseMs: 60_000,
+});
+const publication: PublicationPolicy = {
+  maxMessageBytes: 1_000_000,
+  validateRecord: (commit) => commit.events.every((event) => event.type === "SupportedEvent")
+    ? { kind: "allow" } : { kind: "reject", code: "unsupported-schema" },
+};
+const relayConfig: DispatcherConfig = {
+  ...config, publication,
+  resumeTokenStore: new MongoResumeTokenStore(db, "cdc_state", { checkpointKey: "relay-a", feedId: feed }),
+  quarantine: { enabled: true, store, sourceRetention: "immutable-until-resolved" }, // default continue, no flag
+};
+const relay = new Dispatcher(relayConfig);
+relay.on("quarantined", (event) => console.log(event.id, event.checkpointAdvanced, event.resolution));
+
+// Trusted operator process: bind this caller-owned publisher to the SAME destination/tenant.
+const publisher = new CommitPublisher(config.rabbitmq);
+const service = new QuarantineService({ ...config, publication, store, publisher,
+  source: new MongoQuarantineSourceReader(db, config.mongodb.collection, feed),
+  sourceRetention: "immutable-until-resolved",
+});
+try {
+  const page = await service.list({ status: "quarantined", limit: 25 }); // maximum 100
+  if (page.after) console.log(await service.list({ status: "quarantined", after: page.after }));
+  const selected = page.records[0];
+  if (selected) console.log(await service.redrive(selected.id, {
+    actor: "operator@example.org", reason: "Schema support deployed; incident reviewed",
+  }));
+} finally {
+  await service.close(); // stops new attempts and drains active calls
+  await publisher.close(); // explicit caller-owned resource cleanup
+}
+```
+
+**Continue is the default for configured, enabled quarantine:**
+`{ enabled:true, store, sourceRetention:"immutable-until-resolved" }`.
+Explicit `mode:"continue"` is equivalent and needs no acknowledgement flag.
+It checkpoints only after durable capture, emits `quarantined` rather than
+`dispatched`, and permits following healthy records while quarantine stays enabled.
+**This creates per-stream ordering gaps. Later redrive cannot restore original
+order.** Use trusted consumers that tolerate gaps and enforce stable-identity
+idempotency or reconciliation; operational availability is not exactly-once delivery.
+
+To opt into stopping, set
+`{ enabled:true, store, sourceRetention:"immutable-until-resolved", mode:"pause" }`.
+Explicit pause durably captures, emits `quarantined` with `checkpointAdvanced:false`, then
+halts immediately with `QuarantinePaused`: no subsequent record and no checkpoint
+advancement. Fix the policy/cause, redrive explicitly, then restart a **new** relay
+instance. A matching published quarantine record advances CDC without publishing
+again, emitting a quarantine resolution event (`resolution:"published"`), never a
+false `dispatched`. A permanent policy rejection cannot be redriven successfully
+until the cause is fixed. Store or checkpoint failure leaves replay recoverable.
+
+**Previous local draft migration:** the unpublished pause-by-default policy is
+superseded by redemeine-ihn0. Add explicit `mode:"pause"` to retain that behavior.
+`acceptOrderingGaps:true` is deprecated, optional compatibility syntax and does not
+select the mode. Existing true-valued callers remain valid with either mode;
+omit the field in new code. A supplied false or other nontrue value is rejected,
+even when quarantine is disabled; use `mode:"pause"`, not a false flag, to stop.
+
+Operational EventEmitter
+notifications are not transactional audit; the persistent document is authoritative.
+Listeners must not throw: a throw propagates to delivery/retry and cannot undo an
+already durable checkpoint. Never treat event receipt as an atomic business effect.
+
+`redrive(id,{actor,reason})` performs one explicit attempt, without background or
+automatic retry. Outcomes are `published`, `already-published`, `busy`, `missing`,
+`rejected` (safe static code, including attempt limit), or `outcome-unknown`.
+Claims and audit entries are atomic, use Mongo server time, and expire after the
+configured lease (default 60s, maximum 1h). Expired takeover marks the old attempt
+unknown before creating a new one; stale/expired owners cannot record completion.
+Broker confirmation precedes persisted success. Lost confirms or completion-write
+failure remain uncertain and may require a later explicit retry with the same
+message id. Redrive **never writes the primary CDC checkpoint**.
+
+This trusted in-process SDK is not an authorization service: actor/reason are audit
+metadata, not authentication. The caller owns RBAC, operator authorization and
+source/destination binding. A Mongo lease cannot fence an actual Rabbit side
+effect from an old operator process: externally fence old operators and require
+downstream idempotency. Do not steal active claims. All existing single-feed-owner,
+oplog limitations and accepted lower-UUID expiry-fallback risks still apply; this
+feature does not provide exactly-once effects, restore ordering, or certify 100M
+capacity. No new CLI/subcommands or automatic CRUD-saga authority are introduced.
 
 ## Qualification commands
 

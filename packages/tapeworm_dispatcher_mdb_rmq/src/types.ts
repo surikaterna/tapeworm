@@ -1,6 +1,8 @@
 import type { Db, Timestamp } from "mongodb";
 import type { ICommit } from "tapeworm";
 import type { IResumeTokenStore } from "./resume/types";
+import type { PublicationPolicy } from "./publication-policy";
+import type { QuarantineConfig, QuarantinedEvent } from "./quarantine/types";
 
 /** MongoDB connection config for the dispatcher. */
 export interface MongoConfig {
@@ -79,6 +81,8 @@ export interface DispatcherConfig {
   feedId?: string;
   /** Explicit operator assertion that an unidentifiable legacy checkpoint belongs here. */
   adoptLegacyCheckpoint?: boolean;
+  publication?: PublicationPolicy;
+  quarantine?: QuarantineConfig;
 }
 
 /** Typed event map for the Dispatcher EventEmitter. */
@@ -86,6 +90,7 @@ export interface DispatcherEvents {
   started: [];
   stopped: [];
   dispatched: [commit: ICommit];
+  quarantined: [event: QuarantinedEvent];
   resumed: [state: ResumeState];
   fallback: [];
   recovery: [event: RecoveryEvent];
