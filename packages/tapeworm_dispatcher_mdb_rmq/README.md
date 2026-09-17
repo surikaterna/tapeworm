@@ -1,319 +1,283 @@
 # tapeworm_dispatcher_mdb_rmq
 
-MongoDB-to-RabbitMQ commit dispatcher for [tapeworm](../tapeworm) event stores.
+MongoDB-to-RabbitMQ CDC relay for Tapeworm commits. Change streams are the default;
+direct oplog tailing is an explicit, weaker-durability option.
 
-Watches a tapeworm commits collection for new inserts and publishes each commit to a RabbitMQ headers exchange with **at-least-once delivery** semantics.
+## Delivery contract
 
-## Features
+For each admitted commit the relay performs, in order:
 
-- **Two watch modes**: Change stream (majority-safe) or direct oplog tailing (lowest latency)
-- **Two-level resume**: MongoDB resume token (primary) + UUID v7 `.token` cursor (fallback)
-- **Publisher confirms**: Every message is acknowledged by the RabbitMQ broker before checkpointing
-- **Pluggable resume storage**: Built-in MongoDB store or bring your own `IResumeTokenStore`
-- **Library + CLI**: Use as a library in your process or run as a standalone daemon
-- **Multi-tenant**: Optional `tenant` header on every AMQP message
+1. Publish the complete commit with persistent delivery mode to a durable **headers** exchange.
+2. Require a publisher confirm **and no mandatory return**.
+3. Durably save the acknowledged CDC position.
+4. Emit `dispatched`.
 
-## CLI Usage
+Failed publication is never skipped, including a repeatedly failing/poison commit.
+Checkpoint failure is a delivery failure too. Retrying after a confirm/checkpoint
+crash can duplicate messages. `messageId` remains `commit.id`; consumers must
+deduplicate and make effects idempotent or reconcilable. There is **no exactly-once
+external-effect guarantee**. Broker acceptance is not consumer/business completion.
 
-### Basic — change stream mode (default)
+`mandatory: true` proves routing to **at least one queue**, not to every required
+subscriber, and not that the destination queues are durable. Before launching,
+operators must provision and verify all required durable queues, headers bindings,
+replication/quorum policies, persistence and retention. A matching disposable queue
+can satisfy mandatory routing while a required business queue is missing.
 
-```bash
-npx tapeworm-dispatcher \
-  --mongodb-uri mongodb://localhost:27017 \
-  --database mydb \
-  --collection tw_master_commits \
-  --rabbitmq-uri amqp://localhost \
-  --exchange tw.commits.exchange
-```
+Every attempt has a separate AMQP `correlationId`, even concurrent attempts for the
+same commit. Return precedes confirm on Rabbit's channel protocol. Nack, return,
+timeout, connection/channel closure and stop reject outstanding publication.
+Timeout means **unknown outcome**, not proof of non-delivery. Channel closure and
+connection closure use a shared reconnect loop. Internal outstanding attempts are
+bounded (`maxPending`, default 256); channel backpressure rejects new attempts
+until drain. The watcher retries from the last acknowledged checkpoint, not from
+a cached startup position. There is no unbounded publication waiting queue.
 
-### Direct oplog mode (lowest latency)
+## Recovery and its accepted limitation
 
-```bash
-npx tapeworm-dispatcher \
-  --mongodb-uri mongodb://localhost:27017 \
-  --database mydb \
-  --collection tw_master_commits \
-  --rabbitmq-uri amqp://localhost \
-  --exchange tw.commits.exchange \
-  --watch-mode oplog
-```
+Normal recovery uses the opaque MongoDB resume token, or the acknowledged BSON
+oplog Timestamp in explicit oplog mode. UUID is an identity/range selector, **not**
+an insertion-order completeness frontier.
 
-### Multi-tenant with custom resume collection
+Only cursor history expiry (Mongo code 286 / `ChangeStreamHistoryLost`, or a proven
+oplog retention gap) activates fallback. Code 280 is **not** treated generically
+as expiry. Authentication, connection, handler, validation, publish and checkpoint
+errors never masquerade as history expiry. Legacy UUID-only checkpoints have a
+separate, observable migration path, not an invented expiry event.
 
-```bash
-npx tapeworm-dispatcher \
-  --mongodb-uri mongodb://rs0.example.com:27017,rs1.example.com:27017/?replicaSet=rs0 \
-  --database lx3_acme \
-  --collection tw_master_commits \
-  --rabbitmq-uri amqp://user:pass@rabbit.example.com:5672 \
-  --exchange acme.commits.exchange \
-  --watch-mode changeStream \
-  --resume-collection tw_dispatcher_state \
-  --tenant acme
-```
+Fallback:
 
-### All CLI flags
+1. Capture a server `operationTime` using an explicit Mongo session, primary
+   majority read. This works on an empty collection. No client-clock timestamps or
+   synthetic resume tokens are used.
+2. Require an existing complete, non-sparse, non-partial `{ token: 1 }` index.
+   Capture the highest UUID **after** the live boundary to establish a finite range.
+3. Persist `recovery.phase = scan`, its original lower UUID, upper UUID and live
+   boundary before publishing replay records. Use majority, index-hinted ascending
+   `(lower, upper]` traversal with bounded driver batches (default 256).
+4. Save the scan UUID only after confirmed publication. The previous primary
+   position is not overwritten by a fake replay token. After a scan retry, restart
+   **inclusively** at the saved UUID; nonunique index ties may duplicate but are not
+   skipped. One session's scan has finite upper bounds, not a continuously growing tail.
+5. Persist cutover even for an empty scan. Start the live cursor at the original
+   server boundary, inclusively. Inserts during the scan, including lower UUIDs,
+   are delivered by that live cursor. History/live overlap can duplicate records.
 
-| Flag                  | Required | Default               | Description                                   |
-| --------------------- | -------- | --------------------- | --------------------------------------------- |
-| `--mongodb-uri`       | Yes      | —                     | MongoDB connection URI                        |
-| `--database`          | Yes      | —                     | Database name                                 |
-| `--collection`        | Yes      | —                     | Commits collection (e.g. `tw_master_commits`) |
-| `--rabbitmq-uri`      | Yes      | —                     | AMQP connection URI                           |
-| `--exchange`          | Yes      | —                     | Fanout exchange name (asserted on startup)    |
-| `--watch-mode`        | No       | `changeStream`        | `changeStream` or `oplog`                     |
-| `--resume-collection` | No       | `tw_dispatcher_state` | MongoDB collection for resume tokens          |
-| `--tenant`            | No       | —                     | Tenant ID added to AMQP message headers       |
+There is no in-memory live backlog or universal recovery journal. The oplog **must
+retain the original live boundary throughout replay and restart/cutover**. If that
+boundary expires during recovery the relay fails explicitly with `fatal`; it does
+not silently reset to now and loop. Increase retention/capacity and reconcile the
+affected interval under an operator-approved procedure before changing the checkpoint.
 
-## Docker
+**Accepted historical omission (redemeine-gqxm):** A allocates UUID 100; B allocates
+110, inserts, publishes and checkpoints; relay crashes; A inserts milliseconds
+later; outage lasts beyond resume history retention. Fallback `token > 110` can
+omit A if it predates the new live boundary. Valid primary resume would deliver A.
+Neither clock skew nor a writer paused for the whole outage is necessary. This
+is an explicitly accepted, unmeasured residual risk at hundred-million-commit
+scale, not a claim of lossless fallback or a measured rare event.
 
-### Build
+There is no default full-history scan, all-stream enumeration, per-stream ledger,
+or universal journal. An indexed range can still contain many records and take a
+long time; bounded memory does not mean constant recovery work. Optional lookback
+is not implemented in this slice. Counts of unknown omitted records cannot be
+inferred from a successful fallback.
 
-The Dockerfile uses the monorepo root as build context:
+A fresh relay with **no checkpoint** starts from a newly captured server boundary,
+not from the beginning of history. Back up checkpoints; deleting one is an explicit
+change to that starting point, not a routine repair.
 
-```bash
-docker build -f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile -t tapeworm-dispatcher .
-```
+## Single-owner launch gate
 
-### Run
+Run exactly **one externally fenced active owner per source feed/checkpoint**.
+Repeated starts of one instance are guarded; this is **not** a distributed lease
+or proof of global ownership. Do not run two replicas against a key. Prevent old
+owners from resuming before launching replacements (or supply external fencing).
+Mongo majority checkpoint writes alone do not establish ownership.
 
-All CLI flags can be set via environment variables:
+Use a unique checkpoint key and `feedId` identifying the source cluster and Rabbit
+destination/vhost without credentials. The checkpoint identity also includes
+database, collection, watch mode, exchange and tenant. A changed identity is rejected.
+Default identity cannot distinguish identically named resources on different
+clusters/vhosts; explicit IDs and keys are required for those deployments.
 
-```bash
-docker run -d \
-  -e MONGODB_URI=mongodb://mongo:27017 \
-  -e DATABASE=mydb \
-  -e COLLECTION=tw_master_commits \
-  -e RABBITMQ_URI=amqp://rabbitmq:5672 \
-  -e EXCHANGE=tw.commits.exchange \
-  tapeworm-dispatcher
-```
-
-### Environment Variables
-
-| Variable            | Required | Default                 | CLI equivalent                                                                     |
-| ------------------- | -------- | ----------------------- | ---------------------------------------------------------------------------------- |
-| `MONGODB_URI`       | Yes      | —                       | `--mongodb-uri`                                                                    |
-| `DATABASE`          | Yes      | —                       | `--database`                                                                       |
-| `COLLECTION`        | Yes      | —                       | `--collection`                                                                     |
-| `RABBITMQ_URI`      | Yes      | —                       | `--rabbitmq-uri`                                                                   |
-| `EXCHANGE`          | Yes      | —                       | `--exchange`                                                                       |
-| `RESUME_COLLECTION` | No       | `tw_dispatcher_state`   | `--resume-collection`                                                              |
-| `WATCH_MODE`        | No       | `changeStream`          | `--watch-mode`                                                                     |
-| `TENANT`            | No       | —                       | `--tenant`                                                                         |
-| `DEBUG`             | No       | `tapeworm-dispatcher:*` | Controls log output (uses [debug](https://www.npmjs.com/package/debug) namespaces) |
-
-CLI arguments take precedence over environment variables.
-
-## CI/CD
-
-The root [`Jenkinsfile`](../../Jenkinsfile) provides a declarative pipeline:
-
-1. **Install** → **Build** → **Test** → **Docker Build** (all branches)
-2. **Publish** (main branch only) — npm publish via changesets + Docker push
-
-### Operator setup
-
-Configure these in your Jenkins instance (not in the repo):
-
-| Item                 | Jenkins type      | ID             | Purpose                 |
-| -------------------- | ----------------- | -------------- | ----------------------- |
-| npm auth token       | Secret text       | `npm-token`    | Publish packages to npm |
-| Docker registry auth | Username/password | `docker-creds` | Push images to registry |
-
-Set `DOCKER_REGISTRY` in the Publish stage environment to your registry hostname (e.g. `ghcr.io/yourorg`, `docker.io/youruser`).
-
-## Library Usage
+## Library usage
 
 ```typescript
 import { MongoClient } from "mongodb";
-import { Dispatcher, MongoResumeTokenStore } from "tapeworm_dispatcher_mdb_rmq";
+import { Dispatcher, MongoResumeTokenStore, checkpointFeed } from "tapeworm_dispatcher_mdb_rmq";
 
-const client = new MongoClient("mongodb://localhost:27017");
-await client.connect();
-const db = client.db("mydb");
-
+const client = await new MongoClient("mongodb://localhost/?replicaSet=rs0").connect();
+const config = {
+  mongodb: { db: client.db("events"), collection: "tw_master_commits", batchSize: 256 },
+  rabbitmq: { uri: "amqp://localhost", exchange: "commits", confirmTimeoutMs: 30000, maxPending: 256 },
+  feedId: "cluster-a/to-rabbit-a-vhost-events",
+  tenant: "acme",
+};
 const dispatcher = new Dispatcher({
-  mongodb: {
-    db,
-    collection: "tw_master_commits",
-  },
-  rabbitmq: {
-    uri: "amqp://localhost",
-    exchange: "tw.commits.exchange",
-  },
-  resumeTokenStore: new MongoResumeTokenStore(db, "tw_dispatcher_state"),
-  watchMode: "oplog", // or "changeStream" (default)
-  tenant: "acme", // optional
+  ...config,
+  resumeTokenStore: new MongoResumeTokenStore(config.mongodb.db, "cdc_state", {
+    checkpointKey: "acme-master-commits", feedId: checkpointFeed(config),
+  }),
 });
-
-dispatcher.on("started", () => console.log("Watching for commits..."));
-dispatcher.on("dispatched", (commit) => console.log(`Published: ${commit.id}`));
-dispatcher.on("fallback", () =>
-  console.warn("Oplog token expired, replaying from .token cursor"),
-);
-dispatcher.on("error", (err) => console.error("Error:", err));
-
-// Graceful shutdown
-process.on("SIGTERM", async () => {
-  await dispatcher.stop();
-  await client.close();
-});
-
-// Blocks until stop() is called
-await dispatcher.start();
+dispatcher.on("error", (error) => console.error("retry", error.message));
+dispatcher.on("fatal", (error) => console.error("operator action", error.message));
+dispatcher.on("recovery", (event) => console.warn("recovery exposure", event));
+process.once("SIGTERM", () => { void dispatcher.stop(); });
+try { await dispatcher.start(); }
+finally { await dispatcher.stop(); await client.close(); }
 ```
 
-### Custom resume token store
+`start()` is long-running and rejects on exhaustion/fatal failure after cleanup.
+`mongodb.maxRetries` defaults to 50 failed attempts per run, with interruptible
+`retryDelayMs` (default 1000ms). A poison record is not bypassed to serve later
+records. Repair the record/routing/dependency under an explicit operational
+procedure, then restart with the same checkpoint.
 
-```typescript
-import type {
-  IResumeTokenStore,
-  ResumeState,
-} from "tapeworm_dispatcher_mdb_rmq";
+### Stores, compatibility and migration
 
-class RedisResumeTokenStore implements IResumeTokenStore {
-  async load(): Promise<ResumeState | null> {
-    // Load from Redis
-  }
-  async save(state: ResumeState): Promise<void> {
-    // Save to Redis
-  }
-}
+**Breaking upgrade — major changeset (redemeine-gqxm).** Preserved constructors
+and additive API signatures do not make the new recovery behavior backward
+compatible. Existing unscoped checkpoints require explicit adoption, three-field
+stores require the new durable fields, and legacy watcher callbacks must migrate
+to `startWithProgress` when recovery is needed. Follow the migration procedure
+below before upgrading; the fail-closed safety guards are intentional. This
+classification does not authorize publication or promotion of a release.
+
+`MongoResumeTokenStore(db, collection)` remains available with the legacy key
+`dispatcher_resume`. The optional third argument adds `checkpointKey`, `feedId`
+(the complete `checkpointFeed(config)` value) and `adoptLegacyCheckpoint`.
+Using only two arguments is unsafe for shared/multi-feed state collections.
+
+Existing `IResumeTokenStore.load()` / `save(state)` signatures remain. Version 1
+adds `feed`, discriminated `primary`, and `recovery` to `ResumeState`; the original
+`changeStreamToken`, `lastCommitToken`, `updatedAt` fields remain. Custom stores
+must durably roundtrip **all fields and BSON values**, not just the old three
+fields. Use BSON/EJSON-aware serialization for Timestamp and opaque resume token
+values. Transition saves are read back and checked; three-field stores fail
+clearly. A resolved `save()` must mean durable storage, not queued background I/O.
+
+For an unidentifiable legacy checkpoint, stop/fence the old owner, back up its
+document, independently verify its source/destination and watch mode, upgrade the
+store, then explicitly set `DispatcherConfig.adoptLegacyCheckpoint = true` for
+the first run. If the Mongo store also asserts a feed, set its adoption option for
+that run. A known mismatched feed is never adopted. Remove adoption flags afterward.
+To change keys, copy the verified checkpoint to the chosen key under operator
+control before starting; an empty new key means fresh-from-now, **not migration**.
+Synthetic `_replayFallback` tokens in old stored documents require explicit repair.
+
+Direct `ChangeStreamWatcher.start(state, handler)` and `OplogWatcher.start(...)`
+retain their commit/Document-compatible callback (now safely typed as
+`Record<string, unknown>`). It cannot describe durable replay/cutover, so legacy
+callbacks fail clearly when replay is needed. Migrate to
+`startWithProgress(state, handler)` for recovery. `ProgressHandler` receives an
+optional commit and discriminated `DurableProgress` (`live`, `replay`, `transition`).
+The handler must persist the supplied state on every callback, including transitions;
+only a resolved handler advances the watcher's retry position. Runtime commit
+validation checks the Tapeworm envelope and event id/type/version, leaving domain
+payloads as `unknown` for application schema validation.
+
+### Events and operations
+
+`DispatcherEvents` types `started`, `stopped`, `dispatched`, `resumed`, `error`,
+`fatal`, `fallback` and `recovery`. `fallback` retains its no-argument API;
+`recovery` supplies phase, reason and state. Recovery state exposes start time,
+last acknowledged position, chosen range, scan cursor and live boundary. Export
+these to monitoring, compute recovery age/outage exposure, count scan/live
+publications and duplicate attempts, and alert on fallback/exhaustion. Do not
+label this as a measured unknown-miss count.
+
+## CLI
+
+```bash
+tapeworm-dispatcher --mongodb-uri 'mongodb://localhost/?replicaSet=rs0' \
+  --database events --collection tw_master_commits \
+  --rabbitmq-uri amqp://localhost --exchange commits \
+  --resume-collection cdc_state --checkpoint-key acme-master-commits \
+  --feed-id cluster-a/to-rabbit-a-vhost-events --tenant acme
 ```
 
-## Watch Modes
+Required flags: `mongodb-uri`, `database`, `collection`, `rabbitmq-uri`, `exchange`.
+Optional flags: `resume-collection` (default `tw_dispatcher_state`), `watch-mode`
+(`changeStream` default or `oplog`), `tenant`, `checkpoint-key`, `feed-id`,
+`adopt-legacy-checkpoint` (`true`/`false`, default false). All flags have uppercase
+underscore environment equivalents, e.g. `CHECKPOINT_KEY`; CLI takes precedence.
+Supply explicit key/feed identities and use adoption only after the migration
+checks above.
 
-### `changeStream` (default)
+### Signal shutdown
 
-Uses [MongoDB Change Streams](https://www.mongodb.com/docs/manual/changeStreams/). The change stream only fires after a write is **majority-committed** (replicated to a majority of replica set members). This is the safe default — no risk of delivering commits that later get rolled back.
+The CLI retains its existing shutdown policy: signal handlers are installed before
+awaiting the long-running `start()`. The first SIGINT/SIGTERM attempts dispatcher
+stop then Mongo close, and exits 0. A repeated signal or a ten-second shutdown
+timeout forces exit 1. Initialization/fatal errors also exit 1. This CLI does not
+guarantee cleanup after initialization/fatal errors, and logged stop/close failures
+do not change the signal path's exit 0. A forced process exit does not prove an
+already-issued Mongo write was aborted; fence the old owner and inspect durable
+state before restarting. Consumers must tolerate stable-identity duplicates.
 
-### `oplog`
+## Explicit oplog mode
 
-Tails `local.oplog.rs` directly with a tailable-await cursor. Sees inserts **immediately** on the primary, before replication. This gives the lowest possible dispatch latency.
+Oplog mode tails server BSON timestamps, checks the retained floor on resume and
+shares the indexed recovery/checkpoint engine. It observes **direct inserts only**;
+transactional `applyOps` is unsupported. It can publish writes that later roll back
+after primary failure. It is not majority-safe and is not appropriate when those
+limitations are unacceptable. Change streams remain the recommended default.
 
-**⚠️ Trade-off:** If the primary loses an election before the write replicates, the write may be rolled back. The dispatcher would have already published a message for a commit that no longer exists. Consumers must handle this case (e.g. idempotent projections, or accepting rare phantom events).
+## AMQP format
 
-## Resume Strategy
+Body: JSON of the entire validated `ICommit` including `events[]` and its domain
+fields. Properties: `contentType=application/json`, `deliveryMode=2`,
+`messageId=commit.id`, per-attempt `correlationId`, Unix `timestamp`, `mandatory=true`.
+Headers: `collection`, `partitionId`, `streamId`, optional `tenant`.
 
-The dispatcher uses a two-level resume strategy to survive restarts:
+## Qualification commands
 
-| Level    | Token                                          | Stored as                                  | When used                                    |
-| -------- | ---------------------------------------------- | ------------------------------------------ | -------------------------------------------- |
-| Primary  | Change stream resume token / oplog `Timestamp` | `ResumeState.changeStreamToken`            | Normal restart within oplog retention window |
-| Fallback | UUID v7 `.token` field on commits              | `ResumeState.lastCommitToken` (hex string) | When primary token is expired or invalid     |
+Use project Node 26 and npm 11.12.1 (not a downgrade of TS 6/Vitest 5):
 
-**Resume flow on startup:**
-
-1. Load `ResumeState` from the token store
-2. Try resuming from the primary token
-3. If the primary token is expired → emit `"fallback"`, query commits by `.token > lastCommitToken`, replay missed commits
-4. Switch to live tailing (change stream or oplog)
-
-**Checkpoint flow per commit:**
-
-1. Publish to RabbitMQ → wait for broker ack (publisher confirms)
-2. **Only after confirmed delivery:** save the resume state
-
-This ensures at-least-once delivery. If the process crashes between publish and checkpoint, the commit will be re-published on restart. Consumers should use `messageId` (= `commit.id`) for deduplication.
-
-## AMQP Message Format
-
-**Exchange:** Fanout (durable), asserted on startup.
-
-**Message body** (JSON):
-
-```json
-{
-  "id": "a1b2c3d4-...",
-  "partitionId": "master",
-  "streamId": "order-123",
-  "commitSequence": 5,
-  "events": [{ "id": "...", "type": "order.created", "payload": {} }],
-  "token": "<BSON UUID v7>",
-  "isDispatched": false,
-  "createDateTime": "2026-04-16T..."
-}
+```bash
+npm ci
+npm run build
+npm run test --workspace=tapeworm_dispatcher_mdb_rmq
+npm run check --workspace=tapeworm_dispatcher_mdb_rmq
+npm run test:consumer --workspace=tapeworm_dispatcher_mdb_rmq
 ```
 
-**AMQP properties:**
-| Property | Value |
-|----------|-------|
-| `contentType` | `application/json` |
-| `deliveryMode` | `2` (persistent) |
-| `messageId` | `commit.id` (for deduplication) |
-| `timestamp` | Unix epoch seconds |
+Real services on isolated localhost ports (Docker required):
 
-**AMQP headers:**
-| Header | Value |
-|--------|-------|
-| `collection` | Commits collection name (e.g. `tw_master_commits`) |
-| `partitionId` | Tapeworm partition ID (e.g. `master`) |
-| `streamId` | Aggregate/stream ID |
-| `tenant` | Tenant ID (only if configured) |
-
-## Architecture
-
-```
-                  ┌─────────────────────────────────┐
-                  │         MongoDB Replica Set      │
-                  │                                  │
-                  │  tw_master_commits   oplog.rs    │
-                  │        │                │        │
-                  └────────┼────────────────┼────────┘
-                           │                │
-               changeStream│          oplog │
-                    mode   │          mode  │
-                           ▼                ▼
-                  ┌────────────────────────────────┐
-                  │     tapeworm-dispatcher         │
-                  │                                 │
-                  │  ChangeStreamWatcher  ──┐       │
-                  │           OR            ├─►     │
-                  │  OplogWatcher        ──┘       │
-                  │         │                       │
-                  │         ▼                       │
-                  │  CommitPublisher                │
-                  │  (publisher confirms)           │
-                  │         │                       │
-                  │         ▼                       │
-                  │  IResumeTokenStore              │
-                  │  (checkpoint after publish)     │
-                  └────────┬───────────────────────┘
-                           │
-                           ▼
-                  ┌─────────────────────┐
-                  │  RabbitMQ Fanout    │
-                  │  Exchange (durable) │
-                  └────────┬────────────┘
-                           │
-                    ┌──────┼──────┐
-                    ▼      ▼      ▼
-                 Queue   Queue   Queue
-                (consumer bindings)
+```bash
+docker run -d --name gqxm-mongo -p 127.0.0.1:27187:27017 mongo:8 --replSet rs0 --bind_ip_all
+docker exec gqxm-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
+docker run -d --name gqxm-rabbit -p 127.0.0.1:56787:5672 rabbitmq:4
+docker exec gqxm-rabbit rabbitmq-diagnostics -q ping
+docker run -d --name gqxm-expiry-mongo -p 127.0.0.1:27188:27017 mongo:8 --replSet rs0 --bind_ip_all --oplogSize 1 --syncdelay 1
+docker exec gqxm-expiry-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
+npm run test:integration --workspace=tapeworm_dispatcher_mdb_rmq
+docker rm -f gqxm-mongo gqxm-rabbit gqxm-expiry-mongo
 ```
 
-## Exports
+Wait for Mongo primary and Rabbit readiness. `TEST_MONGODB_URI` and
+`TEST_RABBITMQ_URI` override normal test endpoints; `TEST_EXPIRY_MONGODB_URI` must
+point at a dedicated small-oplog test replica set. Its startup storage checkpoint
+interval (`syncdelay`) must be one second for bounded rollover.
+Missing services **fail**, not skip. Tests create/drop isolated databases, queues
+and exchanges. Integration includes real empty-collection operationTime capture,
+finite IXSCAN explain, nonunique UUID ties, history/live overlap, accepted lower-UUID
+omission, Mongo history-expiry classification, scoped BSON checkpoints, Rabbit
+mandatory returns/channel reconnect, and actual child-process SIGKILL between
+broker confirmation and checkpoint in both watch modes. Expiry tests capture a
+real resume token/server boundary, write bounded noise to roll a dedicated 1MB oplog
+past that position, then verify actual server history-expiry and recovery.
+This is not a multi-day outage or scale benchmark.
 
-| Export                  | Type      | Description                            |
-| ----------------------- | --------- | -------------------------------------- |
-| `Dispatcher`            | Class     | Main orchestrator                      |
-| `ChangeStreamWatcher`   | Class     | Change stream watcher                  |
-| `OplogWatcher`          | Class     | Direct oplog watcher                   |
-| `CommitPublisher`       | Class     | RabbitMQ headers publisher             |
-| `MongoResumeTokenStore` | Class     | MongoDB resume token store             |
-| `ICommitWatcher`        | Interface | Watcher contract                       |
-| `IResumeTokenStore`     | Interface | Resume store contract                  |
-| `DispatcherConfig`      | Type      | Config for `Dispatcher`                |
-| `DispatcherEvents`      | Type      | Event map for typed listeners          |
-| `MongoConfig`           | Type      | MongoDB config                         |
-| `RabbitConfig`          | Type      | RabbitMQ config                        |
-| `ResumeState`           | Type      | Resume token state                     |
-| `WatchMode`             | Type      | `"changeStream" \| "oplog"`            |
-| `CommitHandler`         | Type      | Callback signature for commit handlers |
+`test:consumer` packs and installs built declarations outside the workspace under
+`/tmp/opencode`, then compiles positive and negative type fixtures without aliases.
+`check` uses strict TS (including tests/CLI, no unchecked indexing, no skipped
+library checks). Unit tests use narrow typed ports, not casts of whole Mongo Db or
+AMQP channels. Root `check` also runs the core package's existing Biome gate.
 
-## Requirements
-
-- Node.js >= 20
-- MongoDB replica set (required for both change streams and oplog tailing)
-- RabbitMQ broker
+These are correctness regressions, **not production certification**, 100M-record
+capacity measurements, replica election/rollback qualification, broker disk-loss
+testing, or proof that an operator's required queue topology is correct. Qualify
+retention headroom, failover, queue durability and peak recovery throughput for
+the deployment before enabling delivery of business-critical intents.

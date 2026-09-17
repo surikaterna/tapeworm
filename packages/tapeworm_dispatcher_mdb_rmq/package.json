@@ -4,16 +4,26 @@
   "description": "MongoDB change stream to RabbitMQ dispatcher for tapeworm commits",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "bin": {
     "tapeworm-dispatcher": "dist/bin/cli.js"
   },
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "check": "npm run typecheck",
+    "test:integration": "tsc -p tsconfig.worker.json && vitest run --config vitest.integration.config.ts",
+    "test:consumer": "node test/consumer.mjs"
   },
   "author": "Andreas Karlsson",
   "license": "MIT",
   "dependencies": {
+    "@types/bluebird": "3.5.42",
     "amqplib": "^0.10.8",
     "debug": "^4.3.0",
     "mongodb": "^6.12.0",

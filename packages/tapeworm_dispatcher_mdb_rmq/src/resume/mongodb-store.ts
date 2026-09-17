@@ -1,47 +1,47 @@
 import type { Db } from "mongodb";
 import type { ResumeState } from "../types";
+import { decodeState } from "../validation";
 import type { IResumeTokenStore } from "./types";
 
-const STORE_ID = "dispatcher_resume";
+export interface MongoResumeStoreOptions {
+  checkpointKey?: string;
+  feedId?: string;
+  adoptLegacyCheckpoint?: boolean;
+}
 
-/**
- * Stores dispatcher resume state in a MongoDB collection.
- * Uses a single document with a fixed _id for upsert semantics.
- */
+/** One externally fenced owner per key. No distributed lease is implied. */
 export class MongoResumeTokenStore implements IResumeTokenStore {
-  private readonly _db: Db;
-  private readonly _collectionName: string;
+  constructor(private readonly db: Db, private readonly collectionName: string,
+    private readonly options: MongoResumeStoreOptions = {}) {}
 
-  constructor(db: Db, collectionName: string) {
-    this._db = db;
-    this._collectionName = collectionName;
+  private collection() {
+    return this.db.collection<{ _id: string; [key: string]: unknown }>(this.collectionName);
   }
 
   async load(): Promise<ResumeState | null> {
-    const doc = await this._db
-      .collection(this._collectionName)
-      .findOne({ _id: STORE_ID as any });
-
+    const doc = await this.collection().findOne(
+      { _id: this.options.checkpointKey ?? "dispatcher_resume" },
+      { readConcern: { level: "majority" }, readPreference: "primary" },
+    );
     if (!doc) return null;
+    return this.validate(decodeState(doc));
+  }
 
-    return {
-      changeStreamToken: doc.changeStreamToken ?? undefined,
-      lastCommitToken: doc.lastCommitToken ?? undefined,
-      updatedAt: doc.updatedAt,
-    };
+  private validate(state: ResumeState): ResumeState {
+    const feed = this.options.feedId;
+    if (feed && state.feed !== feed && !(state.feed === undefined && this.options.adoptLegacyCheckpoint)) {
+      throw new Error("Checkpoint feed mismatch; explicit legacy migration required");
+    }
+    return state;
   }
 
   async save(state: ResumeState): Promise<void> {
-    await this._db.collection(this._collectionName).updateOne(
-      { _id: STORE_ID as any },
-      {
-        $set: {
-          changeStreamToken: state.changeStreamToken ?? null,
-          lastCommitToken: state.lastCommitToken ?? null,
-          updatedAt: state.updatedAt,
-        },
-      },
-      { upsert: true, writeConcern: { w: "majority" } },
+    const validated = this.validate(decodeState(state));
+    await this.collection().replaceOne(
+      { _id: this.options.checkpointKey ?? "dispatcher_resume" },
+      { ...validated, feed: this.options.feedId ?? validated.feed,
+        _id: this.options.checkpointKey ?? "dispatcher_resume" },
+      { upsert: true, ignoreUndefined: true, writeConcern: { w: "majority" } },
     );
   }
 }
