@@ -6,6 +6,7 @@ import { MongoClient, UUID } from 'mongodb';
 import { connect } from 'amqplib';
 import { MongoResumeTokenStore, checkpointFeed, Dispatcher } from 'tapeworm_dispatcher_mdb_rmq';
 import * as core from 'tapeworm';
+import { runtimeBuilds, sameRuntimeBuilds } from './artifacts.mjs';
 
 const uri = 'mongodb://mongo:27017/?directConnection=true&replicaSet=rs0';
 const rabbitUri = 'amqp://ci:ci-test-only@rabbit:5672';
@@ -67,6 +68,10 @@ function identity() {
     assert.equal(existsSync(`/app/node_modules/${dependency}`), false, `${dependency} leaked into runtime`);
   }
   const expected = json('/evidence/identity.json');
+  const actualBuilds = runtimeBuilds('/app');
+  sameRuntimeBuilds(expected.runtimeBuilds, actualBuilds);
+  console.log('IMAGE runtime inventory/bytes match qualified npm outputs',
+    Object.fromEntries(Object.entries(actualBuilds).map(([name, files]) => [name, files.length])));
   assert.equal(json('/app/package.json').version, expected.rootVersion);
   for (const [name, version] of Object.entries(record(expected.versions))) {
     assert.ok(name === 'tapeworm' || name === 'tapeworm_dispatcher_mdb_rmq');

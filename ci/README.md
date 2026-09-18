@@ -19,7 +19,7 @@ Alpine, with both stages pinned to the same Node/npm versions. Base tags are
 pulled, actual IDs/digests are logged, and the resulting production image ID—not
 a mutable tag—is smoked and subsequently eligible for publication.
 
-The runner executes install, forced serial root build, root check, strict CI
+The runner executes install, pristine generated-output cleanup, forced serial root build, root check, strict CI
 helper check/policy tests, forced serial root tests, packed-consumer compilation,
 verified service connectivity, and the **unfiltered** real integration suite.
 The host then performs a no-cache production build and real image smoke. No
@@ -52,6 +52,39 @@ development/root tools and copies their freshly compiled output, retaining the
 core postbuild shim and declaration dependencies. Recursive ignore rules exclude
 host dependencies/output, Git, caches, env/auth files and CI artifacts. A benign
 generated sentinel checks that host `dist` did not enter the image.
+
+### Pristine npm/image artifacts (redemeine-b3qo)
+
+Turbo `--force` forces compilation but **does not remove deleted-module output**.
+The shared qualifier therefore removes declared workspace `dist` and configured
+`dist-worker` directories after install and before build. This intentionally
+discards local generated results. It first validates the root `packages/*`
+workspace contract, real package directories, known TypeScript output paths and
+all deletion candidates, and refuses any tracked file under those outputs.
+Symlinked roots/packages/output roots are rejected before deletion; nested output
+symlinks are unlinked without following their targets. Source, `node_modules`,
+unrelated ignored files/secrets, and caches are not cleaned. Current TypeScript
+configs have no incremental/composite state; enabling it requires an explicit
+cleanup contract rather than silently deleting generic `*.tsbuildinfo` files.
+
+After qualification, npm dry-run pack metadata must include exactly each runtime
+package's built `dist` paths and byte sizes. The receipt records every relative
+runtime file path, byte count and SHA-256, plus an all-workspace build hash. The
+actual image must match both runtime inventories **and every byte hash**, not
+just package versions. Extra, missing or changed files fail. The temporary
+Docker-context sentinel is inserted only for the build and removed before the
+post-build artifact check; no filename is exempt from identity hashing. Adding
+even `ci-host-sentinel` after qualification invalidates release preflight.
+
+For a sequential end-to-end regression in a clean-source worktree, use the pinned
+Node/npm toolchain to run `node ci/seeded-artifacts.mjs qualify`. This test-only
+harness seeds an ignored obsolete module, invokes the real `./ci/qualify.sh`, then
+checks its absence from npm and the actual image, verifies exact inventories,
+and temporarily adds/tampers with output to prove rejection before restoring it.
+It does not publish, bind credentials, or introduce a qualification bypass.
+Normal `./ci/qualify.sh` always performs the pristine-output gate. Filesystem
+safety and same-size byte mutation regressions run in private temporary fixture
+repositories (including paths with spaces), never concurrent live build output.
 
 Smoke verifies package imports/versions, Node/npm, non-root UID, tini PID 1 with
 direct Node child, argument-over-environment precedence, real Rabbit bodies and
