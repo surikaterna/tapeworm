@@ -19,7 +19,7 @@ test('Jenkins delegates qualification, checks main before binding credentials, a
 
 test('qualification gates are ordered, unfiltered, and cannot publish', () => {
   const script = readFileSync('ci/qualify.sh', 'utf8');
-  const commands = ['npm ci', 'npm run build -- --force', 'npm run check -- --force',
+  const commands = ['npm ci', 'node ci/artifacts.mjs clean', 'npm run build -- --force', 'npm run check -- --force',
     'npm test -- --force', 'npm run test:consumer', 'npm run test:integration', 'docker build --no-cache'];
   let previous = -1;
   for (const command of commands) {

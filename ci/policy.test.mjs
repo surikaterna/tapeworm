@@ -24,7 +24,7 @@ test('registry rejects schemes, shell syntax and credential URLs', () => {
     assert.throws(() => registry(value));
   }
 });
-const identity = { revision: 'abc', rootVersion: '0.0.0', versions: { tapeworm: '1.0.0' }, builds: '123' };
+const identity = { revision: 'abc', rootVersion: '0.0.0', versions: { tapeworm: '1.0.0' }, builds: '123', runtimeBuilds: {} };
 test('exact artifact identity passes', () => sameIdentity(identity, structuredClone(identity)));
 test('artifact version, revision and build mismatches reject', () => {
   for (const changed of [{ revision: 'def' }, { versions: { tapeworm: '2.0.0' } }, { builds: '456' }, { rootVersion: '1.0.0' }]) {

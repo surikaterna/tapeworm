@@ -115,6 +115,7 @@ gates() {
         test "$(npm --version)" = 11.12.1
         node --input-type=module -e '\''import p from "./package.json" with {type:"json"}; if(p.packageManager!=="npm@11.12.1") process.exit(1)'\''
         printf "\nGATE npm ci\n"; npm ci
+        printf "\nGATE pristine owned generated outputs\n"; node ci/artifacts.mjs clean
         printf "\nGATE forced root build\n"; npm run build -- --force --concurrency=1
         printf "\nGATE root check\n"; npm run check -- --force --concurrency=1
         printf "\nGATE CI helper check/test\n"; node_modules/.bin/tsc -p ci/tsconfig.json; node --test ci/*.test.mjs
@@ -127,7 +128,10 @@ gates() {
 
 build_image() {
     printf '\nGATE production build (no cache, generated host outputs present)\n'
-    SENTINEL="$ROOT/packages/tapeworm_dispatcher_mdb_rmq/dist/ci-host-sentinel"
+    runner node ci/policy.mjs identity "$ART"
+    local marker="$ROOT/packages/tapeworm_dispatcher_mdb_rmq/dist/ci-host-sentinel"
+    [[ ! -e $marker && ! -L $marker ]]
+    SENTINEL=$marker
     printf 'Ignored build-context sentinel\n' > "$SENTINEL"
     local version core_version
     version=$(runner node -p 'require("./packages/tapeworm_dispatcher_mdb_rmq/package.json").version')
@@ -135,12 +139,14 @@ build_image() {
     docker build --no-cache --pull --force-rm -f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile \
         --build-arg "REVISION=$(git rev-parse HEAD)" --build-arg "VERSION=$version" \
         --build-arg "CORE_VERSION=$core_version" -t "tapeworm-dispatcher:$RUN_ID" .
+    rm -- "$SENTINEL"
+    SENTINEL=''
     IMAGE=$(docker image inspect --format '{{.Id}}' "tapeworm-dispatcher:$RUN_ID")
     export IMAGE
     printf '%s\n' "$IMAGE" > "$ART/image-id"
     git rev-parse HEAD > "$ART/revision"
     docker image inspect --format '{{.Id}} {{json .Config.Labels}}' "$IMAGE"
-    runner node ci/policy.mjs identity "$ART"
+    runner node ci/policy.mjs verify-artifacts "$ART"
     "$ROOT/ci/services.sh" smoke
 }
 
