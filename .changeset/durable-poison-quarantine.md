@@ -32,3 +32,6 @@ Optional synchronous onCheckpointed notifications run only after persistence.
 Throws or untyped non-undefined returns terminally halt via DeliveryHalted rather
 than retrying from stale in-memory progress; restart reloads the saved checkpoint.
 This does not promise exactly-once notifications or certify custom-handler durability.
+
+Clarify operator claim/completion orchestration with private named atomic steps
+(redemeine-nqxf), preserving MongoDB commands, server-time leases and stored audit layout.
