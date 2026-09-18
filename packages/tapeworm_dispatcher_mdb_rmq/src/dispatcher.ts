@@ -5,7 +5,8 @@ import { ChangeStreamWatcher } from "./ingestion/watcher";
 import type { DurableCommitWatcher } from "./ingestion/watcher";
 import { OplogWatcher } from "./ingestion/oplog-watcher";
 import { CommitPublisher } from "./rabbitmq/publisher";
-import { deliver } from "./delivery/delivery";
+import { deliverOutcome } from "./delivery/delivery";
+import { validateDispatcherConfig } from "./dispatcher-config";
 import { decodeState } from "./validation";
 import { checkpointFeed } from "./checkpoints/feed";
 
@@ -18,11 +19,18 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
   private stopping?: Promise<void>;
   private readonly feed: string;
 
+  // Node's emitter permits unknown strings; this SDK exposes declared events and Node's observer hooks.
+  override on<E extends string | symbol>(event: E & (keyof DispatcherEvents | "newListener" | "removeListener" | symbol),
+    listener: Parameters<typeof this.addListener<E>>[1]): this {
+    return super.on(event, listener);
+  }
+
   constructor(private readonly config: DispatcherConfig) {
     super();
+    validateDispatcherConfig(config);
     this.feed = checkpointFeed(config);
     this.watcher = config.watchMode === "oplog" ? new OplogWatcher(config.mongodb) : new ChangeStreamWatcher(config.mongodb);
-    this.publisher = new CommitPublisher(config.rabbitmq, config.tenant);
+    this.publisher = new CommitPublisher(config.rabbitmq, config.tenant, config.publication);
     this.watcher.on("fallback", () => this.emit("fallback"));
     this.watcher.on("recovery", (event: import("./types").RecoveryEvent) => this.emit("recovery", event));
     this.watcher.on("error", (error: Error) => this.emit("error", error));
@@ -58,8 +66,9 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
   }
 
   private async handle(commit: ICommit | undefined, progress: DurableProgress): Promise<void> {
-    await deliver(commit, progress, this.publisher, this.config.resumeTokenStore, this.config.mongodb.collection, this.feed);
-    if (commit) this.emit("dispatched", commit);
+    const result = await deliverOutcome(commit, progress, { publisher: this.publisher, store: this.config.resumeTokenStore,
+      collection: this.config.mongodb.collection, feed: this.feed, failureHandler: this.config.failureHandler });
+    if (result.kind === "dispatched" && commit) this.emit("dispatched", commit);
   }
 
   private isStopped(): boolean { return this.stopped; }

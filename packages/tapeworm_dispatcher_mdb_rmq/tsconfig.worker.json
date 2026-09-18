@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "outDir": "dist-worker", "skipLibCheck": false, "noUncheckedIndexedAccess": true },
-  "include": ["test/support/worker.ts"]
+  "include": ["test/support/worker.ts", "test/quarantine/support/worker.ts"]
 }

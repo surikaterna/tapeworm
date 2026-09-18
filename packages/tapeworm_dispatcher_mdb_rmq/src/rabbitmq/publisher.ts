@@ -2,6 +2,7 @@ import type { ICommit } from "tapeworm";
 import type { RabbitConfig } from "../types";
 import { ConfirmedChannel } from "./confirmed-channel";
 import { openRabbit, type RabbitConnection } from "./connection";
+import { encodePublication, validatePublicationPolicy, type PublicationPolicy } from "./encoding";
 
 /** Persistent mandatory publication. Failure is retried from the durable CDC position. */
 export class CommitPublisher {
@@ -14,7 +15,9 @@ export class CommitPublisher {
   private cancelDelay?: () => void;
   private readonly quietError = () => {};
 
-  constructor(private readonly config: RabbitConfig, private readonly tenant?: string) {
+  constructor(private readonly config: RabbitConfig, private readonly tenant?: string,
+    private readonly publication?: PublicationPolicy) {
+    validatePublicationPolicy(publication);
     for (const value of [config.maxPending ?? 256, config.confirmTimeoutMs ?? 30000]) {
       if (!Number.isSafeInteger(value) || value < 1) throw new Error("Publisher limits must be positive integers");
     }
@@ -80,11 +83,13 @@ export class CommitPublisher {
 
   private isStopped(): boolean { return this.stopped; }
 
+  /** Requires a validated ICommit; application event schemas belong to the source/consumer. */
   async publish(commit: ICommit, collectionName: string): Promise<void> {
     if (this.stopped) throw new Error("Publisher stopped");
     const confirmed = this.confirmed;
     if (!confirmed) throw new Error("Rabbit unavailable; retry from checkpoint");
-    const body = Buffer.from(JSON.stringify(commit));
+    confirmed.assertCapacity();
+    const body = encodePublication(commit, this.publication);
     const headers: Record<string, string> = { collection: collectionName,
       partitionId: commit.partitionId, streamId: commit.streamId };
     if (this.tenant) headers.tenant = this.tenant;

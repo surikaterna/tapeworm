@@ -1,6 +1,8 @@
 import type { Db, Timestamp } from "mongodb";
 import type { ICommit } from "tapeworm";
 import type { IResumeTokenStore } from "./checkpoints/types";
+import type { PublicationPolicy } from "./rabbitmq/encoding";
+import type { DeliveryFailureHandler } from "./delivery/delivery-failure";
 
 /** MongoDB connection config for the dispatcher. */
 export interface MongoConfig {
@@ -79,6 +81,8 @@ export interface DispatcherConfig {
   feedId?: string;
   /** Explicit operator assertion that an unidentifiable legacy checkpoint belongs here. */
   adoptLegacyCheckpoint?: boolean;
+  publication?: PublicationPolicy;
+  failureHandler?: DeliveryFailureHandler;
 }
 
 /** Typed event map for the Dispatcher EventEmitter. */

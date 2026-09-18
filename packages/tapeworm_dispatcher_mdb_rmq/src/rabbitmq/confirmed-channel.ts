@@ -44,7 +44,7 @@ export class ConfirmedChannel {
     channel.on("error", this.errored);
   }
 
-  private assertCapacity(): void {
+  assertCapacity(): void {
     if (this.stopped) throw new Error("Publisher channel stopped");
     if (!this.writable || this.pending.size >= this.capacity) {
       throw new Error("Publisher backpressure capacity reached");
