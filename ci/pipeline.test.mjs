@@ -35,7 +35,7 @@ test('consumer failure prints child diagnostics and removes only its own portabl
     const bin = join(scratch, 'bin'); mkdirSync(bin);
     writeFileSync(join(bin, 'npm'), '#!/usr/bin/env node\nconsole.log("synthetic pack stdout"); console.error("synthetic pack stderr"); process.exit(42);\n', { mode: 0o755 });
     writeFileSync(join(scratch, 'unrelated'), 'preserve');
-    const result = spawnSync(process.execPath, [resolve('packages/tapeworm_dispatcher_mdb_rmq/test/consumer.mjs')], {
+    const result = spawnSync(process.execPath, [resolve('packages/tapeworm_dispatcher_mdb_rmq/test/consumer/run.mjs')], {
       env: { ...process.env, TMPDIR: scratch, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8', timeout: 10000,
     });
     assert.notEqual(result.status, 0);

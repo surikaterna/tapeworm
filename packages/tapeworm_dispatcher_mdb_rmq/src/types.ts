@@ -1,6 +1,6 @@
 import type { Db, Timestamp } from "mongodb";
 import type { ICommit } from "tapeworm";
-import type { IResumeTokenStore } from "./resume/types";
+import type { IResumeTokenStore } from "./checkpoints/types";
 import type { PublicationPolicy } from "./publication-policy";
 import type { DeliveryFailureHandler } from "./delivery-failure";
 

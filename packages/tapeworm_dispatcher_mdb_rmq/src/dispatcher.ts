@@ -1,14 +1,14 @@
 import { EventEmitter } from "node:events";
 import type { ICommit } from "tapeworm";
 import type { DispatcherConfig, DispatcherEvents, DurableProgress, ResumeState } from "./types";
-import { ChangeStreamWatcher } from "./watcher";
-import type { DurableCommitWatcher } from "./watcher";
-import { OplogWatcher } from "./oplog-watcher";
-import { CommitPublisher } from "./publisher";
-import { deliverOutcome } from "./delivery";
+import { ChangeStreamWatcher } from "./ingestion/watcher";
+import type { DurableCommitWatcher } from "./ingestion/watcher";
+import { OplogWatcher } from "./ingestion/oplog-watcher";
+import { CommitPublisher } from "./rabbitmq/publisher";
+import { deliverOutcome } from "./delivery/delivery";
 import { validateDispatcherConfig } from "./dispatcher-config";
 import { decodeState } from "./validation";
-import { checkpointFeed } from "./feed";
+import { checkpointFeed } from "./checkpoints/feed";
 
 /** One externally enforced owner. Confirm -> durable checkpoint -> dispatched. */
 export class Dispatcher extends EventEmitter<DispatcherEvents> {
