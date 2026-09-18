@@ -1,9 +1,9 @@
 import { expect, test } from "vitest";
-import { record } from "../src/validation";
-import { commit, token } from "./fixtures";
-import { eventually } from "./services";
-import { cleanupCli, exitWithin, launchCli, type CliProcess } from "./cli-process";
-import { lockedCheckpoint, messageIds } from "./cli-lock-fixture";
+import { record } from "../../src/validation";
+import { commit, token } from "../support/fixtures";
+import { eventually } from "../support/services";
+import { cleanupCli, exitWithin, launchCli, type CliProcess } from "./support/process";
+import { lockedCheckpoint, messageIds } from "./support/lock-fixture";
 
 test("locked checkpoint exits at the 10s deadline before unlock, then safely resumes", async () => {
   const env = await lockedCheckpoint();

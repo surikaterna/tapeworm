@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { expect, test } from "vitest";
-import { runCli, type CliClient, type CliDispatcher, type CliSignals } from "../bin/lifecycle";
+import { runCli, type CliClient, type CliDispatcher, type CliSignals } from "../../bin/lifecycle";
 
 interface Failures { initialize?: Error; start?: Error; stop?: Error; close?: Error }
 

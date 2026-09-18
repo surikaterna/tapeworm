@@ -1,8 +1,8 @@
-import { checkpointFeed, MongoResumeTokenStore } from "../index";
-import { MongoHistory } from "../src/history";
-import { record } from "../src/validation";
-import { commit } from "./fixtures";
-import { mongo, rabbit, rabbitUri, eventually } from "./services";
+import { checkpointFeed, MongoResumeTokenStore } from "../../../index";
+import { MongoHistory } from "../../../src/ingestion/history";
+import { record } from "../../../src/validation";
+import { commit } from "../../support/fixtures";
+import { mongo, rabbit, rabbitUri, eventually } from "../../support/services";
 import type { Db } from "mongodb";
 
 export async function checkpointOperations(db: Db): Promise<Record<string, unknown>[]> {

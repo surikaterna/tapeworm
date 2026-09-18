@@ -268,6 +268,8 @@ ingestion, including its checkpoint/BSON case. Shared validation tests stay at
 the test root. `test/system/` contains cross-component crash tests;
 `test/support/` contains shared fixtures, services and the subprocess worker;
 `test/consumer/` checks the packed package-root API outside the workspace.
+`test/cli/` mirrors the `bin/` command-line lifecycle, with its local process and
+shutdown fixtures in `test/cli/support/`.
 
 ## Qualification commands
 

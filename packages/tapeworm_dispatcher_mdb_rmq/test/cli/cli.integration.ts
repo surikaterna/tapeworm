@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { expect, test } from "vitest";
-import { mongo, mongoUri, rabbitUri } from "./services";
+import { mongo, mongoUri, rabbitUri } from "../support/services";
 
 test("CLI closes live Mongo after invalid database initialization and exits voluntarily", async () => {
   const env = await mongo();

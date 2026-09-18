@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { runCli, type CliShutdownTimeout, type CliLifecycleOptions } from "../bin/lifecycle";
+import { runCli, type CliShutdownTimeout, type CliLifecycleOptions } from "../../../bin/lifecycle";
 
 export function deferred() {
   let resolve = () => {};

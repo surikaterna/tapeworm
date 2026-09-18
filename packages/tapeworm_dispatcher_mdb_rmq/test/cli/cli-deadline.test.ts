@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
-import { CliShutdownTimeout, runCli } from "../bin/lifecycle";
-import { deferred, shutdownFixture } from "./cli-shutdown-fixture";
+import { CliShutdownTimeout, runCli } from "../../bin/lifecycle";
+import { deferred, shutdownFixture } from "./support/shutdown-fixture";
 import { EventEmitter } from "node:events";
 
 test.each(["success", "reject", "pending"])("pending start with %s stop remains deadline protected", async (mode) => {

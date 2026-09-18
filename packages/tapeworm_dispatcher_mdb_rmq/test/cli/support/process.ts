@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
-import { mongoUri, rabbitUri } from "./services";
+import { mongoUri, rabbitUri } from "../../support/services";
 
 export function launchCli(database: string, exchange: string) {
   const child = spawn(process.execPath, [resolve("dist/bin/cli.js"),

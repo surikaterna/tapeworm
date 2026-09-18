@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { expect, test } from "vitest";
-import { runCli } from "../bin/lifecycle";
+import { runCli } from "../../bin/lifecycle";
 
 test("SIGTERM initiates client cleanup while start remains pending and stop rejects", async () => {
   const signals = new EventEmitter<{ SIGINT: []; SIGTERM: [] }>();
