@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // An actual pack/install boundary: no TypeScript workspace aliases or source paths.
-const root = resolve(fileURLToPath(new URL('../../', import.meta.url)));
+const root = resolve(fileURLToPath(new URL('../../../', import.meta.url)));
 const scratch = mkdtempSync(join(tmpdir(), 'tapeworm-consumer-'));
 const packs = join(scratch, 'packs');
 /** @param {string[]} args @param {string} [cwd] */
@@ -29,7 +29,7 @@ try {
   const dispatcher = pack(join(root, 'tapeworm_dispatcher_mdb_rmq'));
   writeFileSync(join(scratch, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
   npm(['install', '--ignore-scripts', core, dispatcher, 'typescript@6.0.2', '@types/amqplib@0.10.8', '@types/node@26.5.1']);
-  copyFileSync(new URL('./consumer.fixture.ts', import.meta.url), join(scratch, 'consumer.ts'));
+  copyFileSync(new URL('./fixture.ts', import.meta.url), join(scratch, 'consumer.ts'));
   writeFileSync(join(scratch, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'NodeNext',
     moduleResolution: 'NodeNext', types: ['node'], strict: true, noUncheckedIndexedAccess: true, skipLibCheck: false, noEmit: true }, include: ['consumer.ts'] }));
   process.stdout.write(npm(['exec', '--', 'tsc', '-p', 'tsconfig.json']));

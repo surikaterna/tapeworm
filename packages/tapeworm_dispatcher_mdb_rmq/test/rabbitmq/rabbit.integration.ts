@@ -1,8 +1,8 @@
 import { expect, test } from "vitest";
-import { CommitPublisher } from "../src/publisher";
-import { commit } from "./fixtures";
-import { rabbit, rabbitUri, eventually } from "./services";
-import { rabbitProxy } from "./rabbit-proxy";
+import { CommitPublisher } from "../../src/rabbitmq/publisher";
+import { commit } from "../support/fixtures";
+import { rabbit, rabbitUri, eventually } from "../support/services";
+import { rabbitProxy } from "../support/rabbit-proxy";
 
 test("real mandatory return wins over ACK, durable routing delivers stable messageId", async () => {
   const env = await rabbit();

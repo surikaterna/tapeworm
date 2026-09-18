@@ -4,7 +4,7 @@ import { LoggerFactory } from "slf";
 import slfDebug from "slf-debug";
 import { MongoClient } from "mongodb";
 import { Dispatcher } from "../src/dispatcher";
-import { MongoResumeTokenStore } from "../src/resume/mongodb-store";
+import { MongoResumeTokenStore } from "../src/checkpoints/mongodb-store";
 import { parseArgs } from "./args";
 import { runCli } from "./lifecycle";
 

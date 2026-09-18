@@ -2,10 +2,10 @@ import { fork, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { resolve } from "node:path";
 import { expect, test } from "vitest";
-import { mongo, rabbit, mongoUri, rabbitUri } from "./services";
-import { commit } from "./fixtures";
-import { MongoResumeTokenStore } from "../index";
-import { record } from "../src/validation";
+import { mongo, rabbit, mongoUri, rabbitUri } from "../support/services";
+import { commit } from "../support/fixtures";
+import { MongoResumeTokenStore } from "../../index";
+import { record } from "../../src/validation";
 
 function message(child: ChildProcess, expected: string): Promise<void> {
   return new Promise((resolveMessage, reject) => {
@@ -32,7 +32,7 @@ test.each(["changeStream", "oplog"])("SIGKILL after broker confirm before checkp
   const mq = await rabbit();
   const children: ChildProcess[] = [];
   const spawn = (crash: boolean) => {
-    const child = fork(resolve("dist-worker/test/worker.js"), [], { stdio: ["ignore", "inherit", "inherit", "ipc"],
+    const child = fork(resolve("dist-worker/test/support/worker.js"), [], { stdio: ["ignore", "inherit", "inherit", "ipc"],
       env: { ...process.env, TEST_MONGODB_URI: mongoUri, TEST_RABBITMQ_URI: rabbitUri,
         TEST_DATABASE: mongodb.db.databaseName, TEST_EXCHANGE: mq.exchange, TEST_MODE: mode, TEST_CRASH: String(crash) } });
     children.push(child); return child;

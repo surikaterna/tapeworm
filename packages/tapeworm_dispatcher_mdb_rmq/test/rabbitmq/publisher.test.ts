@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { expect, test, vi } from "vitest";
-import { ConfirmedChannel, type ConfirmPort, type PublishProperties } from "../src/confirmed-channel";
+import { ConfirmedChannel, type ConfirmPort, type PublishProperties } from "../../src/rabbitmq/confirmed-channel";
 
 class Channel extends EventEmitter implements ConfirmPort {
   attempts: { options: PublishProperties; callback: (error: unknown) => void }[] = [];

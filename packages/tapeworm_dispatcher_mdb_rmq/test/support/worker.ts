@@ -1,6 +1,6 @@
 import { MongoClient } from "mongodb";
-import { Dispatcher, MongoResumeTokenStore } from "../index";
-import type { IResumeTokenStore, ResumeState } from "../index";
+import { Dispatcher, MongoResumeTokenStore } from "../../index";
+import type { IResumeTokenStore, ResumeState } from "../../index";
 
 function required(key: string): string {
   const value = process.env[key];

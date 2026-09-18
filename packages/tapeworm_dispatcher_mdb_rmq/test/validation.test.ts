@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { decodeCommit, decodeState } from "../src/validation";
-import { commit, stamp, state, token } from "./fixtures";
+import { commit, stamp, state, token } from "./support/fixtures";
 
 test("validates wire commit structure without interpreting domain payload", () => {
   expect(decodeCommit(commit(11))).toEqual(commit(11));

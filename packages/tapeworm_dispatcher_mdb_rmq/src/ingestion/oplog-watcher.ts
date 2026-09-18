@@ -1,4 +1,4 @@
-import type { MongoConfig } from "./types";
+import type { MongoConfig } from "../types";
 import { MongoHistory } from "./history";
 import { OplogSource } from "./live-source";
 import { RecoveryWatcher } from "./recovery-watcher";

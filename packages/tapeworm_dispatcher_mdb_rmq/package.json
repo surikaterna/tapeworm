@@ -18,7 +18,7 @@
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "check": "npm run typecheck && eslint src bin test index.ts",
     "test:integration": "tsc -p tsconfig.worker.json && vitest run --config vitest.integration.config.ts",
-    "test:consumer": "node test/consumer.mjs"
+    "test:consumer": "node test/consumer/run.mjs"
   },
   "author": "Andreas Karlsson",
   "license": "MIT",

@@ -1,4 +1,4 @@
-import { record } from "./validation";
+import { record } from "../validation";
 
 export class HistoryExpired extends Error {}
 export class RecoveryExhausted extends Error {}

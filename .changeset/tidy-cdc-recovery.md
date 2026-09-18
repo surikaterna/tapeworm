@@ -19,3 +19,7 @@ must migrate from legacy `start` callbacks to `startWithProgress`, persisting ev
 transition. These fail-closed guards intentionally reject unsafe legacy behavior;
 there is no pre-1.0 compatibility exception. A major changeset records the required
 consumer action only: publishing or promoting a release requires separate approval.
+
+For redemeine-lkz5, source and tests are grouped by concern. The supported
+`tapeworm_dispatcher_mdb_rmq` package-root API is unchanged by this layout change;
+unsupported internal deep module paths relocate without compatibility shims.
