@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { record } from "./validation";
+import { record } from "../validation";
 
 export interface PublishProperties {
   contentType?: string;

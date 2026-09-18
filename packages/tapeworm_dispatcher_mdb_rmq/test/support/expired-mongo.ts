@@ -2,10 +2,10 @@ import { randomBytes } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Db, Timestamp } from "mongodb";
 import { mongo } from "./services";
-import { MongoHistory } from "../src/history";
-import { ChangeStreamSource } from "../src/live-source";
+import { MongoHistory } from "../../src/ingestion/history";
+import { ChangeStreamSource } from "../../src/ingestion/live-source";
 import { commit } from "./fixtures";
-import { record, timestamp } from "../src/validation";
+import { record, timestamp } from "../../src/validation";
 
 const payloadBytes = 512 * 1024;
 const initialWrites = 80;

@@ -1,8 +1,8 @@
 import { expect, test } from "vitest";
-import { RecoveryWatcher } from "../src/recovery-watcher";
-import { HistoryExpired } from "../src/recovery-errors";
-import { commit, FakeHistory, FakeLive, item, stamp, state, token } from "./fixtures";
-import type { ResumeState } from "../src/types";
+import { RecoveryWatcher } from "../../src/ingestion/recovery-watcher";
+import { HistoryExpired } from "../../src/ingestion/recovery-errors";
+import { commit, FakeHistory, FakeLive, item, stamp, state, token } from "../support/fixtures";
+import type { ResumeState } from "../../src/types";
 
 test("replay restart keeps inclusive acknowledged scan position and original boundary", async () => {
   const history = new FakeHistory(); history.commits = [commit(11), commit(12)];

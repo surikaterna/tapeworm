@@ -1,8 +1,8 @@
 import { UUID } from "mongodb";
 import type { Collection, FindCursor, Timestamp } from "mongodb";
 import type { ICommit } from "tapeworm";
-import type { MongoConfig, RecoveryPosition } from "./types";
-import { decodeCommit, record, timestamp, uuid } from "./validation";
+import type { MongoConfig, RecoveryPosition } from "../types";
+import { decodeCommit, record, timestamp, uuid } from "../validation";
 
 export interface HistoryPort {
   boundary(): Promise<Timestamp>;

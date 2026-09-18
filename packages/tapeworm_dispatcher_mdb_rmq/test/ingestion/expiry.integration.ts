@@ -1,10 +1,10 @@
 import { expect, test } from "vitest";
-import { ChangeStreamWatcher, OplogWatcher } from "../index";
-import { ChangeStreamSource, OplogSource } from "../src/live-source";
-import { HistoryExpired } from "../src/recovery-errors";
-import { expiredMongo } from "./expired-mongo";
-import { commit, token } from "./fixtures";
-import type { DurableProgress } from "../src/types";
+import { ChangeStreamWatcher, OplogWatcher } from "../../index";
+import { ChangeStreamSource, OplogSource } from "../../src/ingestion/live-source";
+import { HistoryExpired } from "../../src/ingestion/recovery-errors";
+import { expiredMongo } from "../support/expired-mongo";
+import { commit, token } from "../support/fixtures";
+import type { DurableProgress } from "../../src/types";
 
 test("actual oplog rollover expires a real resume token and activates bounded recovery", async () => {
   const env = await expiredMongo();

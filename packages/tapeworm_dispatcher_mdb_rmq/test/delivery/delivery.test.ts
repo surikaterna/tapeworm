@@ -1,8 +1,8 @@
 import { expect, test } from "vitest";
-import { deliver, type PublisherPort } from "../src/delivery";
-import { commit, MemoryStore, state } from "./fixtures";
-import type { DurableProgress } from "../src/types";
-import type { IResumeTokenStore } from "../src/resume/types";
+import { deliver, type PublisherPort } from "../../src/delivery/delivery";
+import { commit, MemoryStore, state } from "../support/fixtures";
+import type { DurableProgress } from "../../src/types";
+import type { IResumeTokenStore } from "../../src/checkpoints/types";
 
 const progress = (): DurableProgress => ({ kind: "replay", state: state() });
 

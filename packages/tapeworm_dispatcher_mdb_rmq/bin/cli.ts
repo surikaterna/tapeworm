@@ -5,8 +5,8 @@ import { LoggerFactory } from "slf";
 import slfDebug from "slf-debug";
 import { MongoClient } from "mongodb";
 import { Dispatcher } from "../src/dispatcher";
-import { MongoResumeTokenStore } from "../src/resume/mongodb-store";
-import { checkpointFeed } from "../src/feed";
+import { MongoResumeTokenStore } from "../src/checkpoints/mongodb-store";
+import { checkpointFeed } from "../src/checkpoints/feed";
 import { parseArgs, type CliArgs } from "./args";
 
 debug.enable(process.env.DEBUG || "tapeworm-dispatcher:*");

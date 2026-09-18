@@ -1,7 +1,7 @@
 import type { ICommit } from "tapeworm";
-import type { RabbitConfig } from "./types";
+import type { RabbitConfig } from "../types";
 import { ConfirmedChannel } from "./confirmed-channel";
-import { openRabbit, type RabbitConnection } from "./rabbit-connection";
+import { openRabbit, type RabbitConnection } from "./connection";
 
 /** Persistent mandatory publication. Failure is retried from the durable CDC position. */
 export class CommitPublisher {

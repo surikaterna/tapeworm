@@ -1,9 +1,9 @@
 import { Timestamp, UUID } from "mongodb";
 import type { ICommit } from "tapeworm";
-import type { HistoryPort } from "../src/history";
-import type { LiveItem, LivePort } from "../src/live-source";
-import type { PrimaryPosition, RecoveryPosition, ResumeState, WatchMode } from "../src/types";
-import type { IResumeTokenStore } from "../src/resume/types";
+import type { HistoryPort } from "../../src/ingestion/history";
+import type { LiveItem, LivePort } from "../../src/ingestion/live-source";
+import type { PrimaryPosition, RecoveryPosition, ResumeState, WatchMode } from "../../src/types";
+import type { IResumeTokenStore } from "../../src/checkpoints/types";
 
 export const token = (n: number) => `00000000-0000-7000-8000-${n.toString().padStart(12, "0")}`;
 export const stamp = new Timestamp({ t: 100, i: 1 });

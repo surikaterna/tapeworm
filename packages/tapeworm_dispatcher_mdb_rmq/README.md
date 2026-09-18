@@ -231,6 +231,27 @@ fields. Properties: `contentType=application/json`, `deliveryMode=2`,
 `messageId=commit.id`, per-attempt `correlationId`, Unix `timestamp`, `mandatory=true`.
 Headers: `collection`, `partitionId`, `streamId`, optional `tenant`.
 
+## Source and test layout
+
+The supported library entry point is `tapeworm_dispatcher_mdb_rmq` (the package
+root). Internal deep module paths are private and have relocated; no legacy path
+shims are provided. This layout change does not change package-root exports.
+
+`src/dispatcher.ts` owns orchestration; `src/types.ts` and `src/validation.ts`
+hold shared contracts and validation. Implementation concerns are grouped under:
+
+- `src/ingestion/`: live sources, history, recovery and watcher adapters.
+- `src/checkpoints/`: feed identity and resume-store contracts/implementation.
+- `src/delivery/`: confirmed publication and durable checkpoint sequencing.
+- `src/rabbitmq/`: publisher, confirmed channel and connection lifecycle.
+
+`test/ingestion/`, `test/delivery/` and `test/rabbitmq/` mirror these concerns,
+with unit and integration suites side by side. The mixed Mongo suite stays in
+ingestion, including its checkpoint/BSON case. Shared validation tests stay at
+the test root. `test/system/` contains cross-component crash tests;
+`test/support/` contains shared fixtures, services and the subprocess worker;
+`test/consumer/` checks the packed package-root API outside the workspace.
+
 ## Qualification commands
 
 Use project Node 26 and npm 11.12.1 (not a downgrade of TS 6/Vitest 5):

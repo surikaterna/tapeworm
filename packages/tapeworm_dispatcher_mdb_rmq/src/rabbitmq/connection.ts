@@ -1,5 +1,5 @@
 import { connect, type ChannelModel, type ConfirmChannel } from "amqplib";
-import type { RabbitConfig } from "./types";
+import type { RabbitConfig } from "../types";
 
 export interface RabbitConnection {
   connection: ChannelModel;

@@ -1,8 +1,8 @@
 import { expect, test } from "vitest";
-import { RecoveryWatcher } from "../src/recovery-watcher";
-import { HistoryExpired, isHistoryExpired } from "../src/recovery-errors";
-import { commit, FakeHistory, FakeLive, item, stamp, state, token } from "./fixtures";
-import type { DurableProgress } from "../src/types";
+import { RecoveryWatcher } from "../../src/ingestion/recovery-watcher";
+import { HistoryExpired, isHistoryExpired } from "../../src/ingestion/recovery-errors";
+import { commit, FakeHistory, FakeLive, item, stamp, state, token } from "../support/fixtures";
+import type { DurableProgress } from "../../src/types";
 
 function setup(live: FakeLive, history = new FakeHistory(), maxRetries = 4) {
   const watcher = new RecoveryWatcher(live, history, { retryDelayMs: 0, maxRetries });

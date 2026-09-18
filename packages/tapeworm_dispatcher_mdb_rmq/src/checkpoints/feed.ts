@@ -1,4 +1,4 @@
-import type { DispatcherConfig } from "./types";
+import type { DispatcherConfig } from "../types";
 
 /** Public helper for matching the Mongo store's optional feed assertion to a dispatcher. */
 export function checkpointFeed(config: Pick<DispatcherConfig, "feedId" | "mongodb" | "rabbitmq" | "watchMode" | "tenant">): string {

@@ -1,10 +1,10 @@
 import { EventEmitter } from "node:events";
 import type { ICommit } from "tapeworm";
-import type { DurableProgress, MongoConfig, PrimaryPosition, RecoveryEvent, ResumeState } from "./types";
+import type { DurableProgress, MongoConfig, PrimaryPosition, RecoveryEvent, ResumeState } from "../types";
 import type { HistoryPort } from "./history";
 import type { LiveItem, LivePort } from "./live-source";
 import { HistoryExpired, RecoveryExhausted } from "./recovery-errors";
-import { decodeState, timestamp, uuid } from "./validation";
+import { decodeState, timestamp, uuid } from "../validation";
 
 export type CommitHandler = (commit: ICommit, resumeToken: Record<string, unknown>) => Promise<void>;
 export type ProgressHandler = (commit: ICommit | undefined, progress: DurableProgress) => Promise<void>;

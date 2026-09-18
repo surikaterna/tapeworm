@@ -1,11 +1,11 @@
 import { expect, test } from "vitest";
 import { Timestamp, UUID } from "mongodb";
-import { MongoHistory } from "../src/history";
-import { ChangeStreamSource, OplogSource } from "../src/live-source";
-import { MongoResumeTokenStore } from "../src/resume/mongodb-store";
-import { commit, token } from "./fixtures";
-import { mongo } from "./services";
-import { record } from "../src/validation";
+import { MongoHistory } from "../../src/ingestion/history";
+import { ChangeStreamSource, OplogSource } from "../../src/ingestion/live-source";
+import { MongoResumeTokenStore } from "../../src/checkpoints/mongodb-store";
+import { commit, token } from "../support/fixtures";
+import { mongo } from "../support/services";
+import { record } from "../../src/validation";
 
 test("Mongo driver server boundary on EMPTY collection includes subsequent live inserts", async () => {
   const env = await mongo();

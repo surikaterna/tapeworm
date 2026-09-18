@@ -1,8 +1,8 @@
 import type { ChangeStream, Collection, FindCursor, Timestamp } from "mongodb";
 import type { ICommit } from "tapeworm";
-import type { MongoConfig, PrimaryPosition, WatchMode } from "./types";
+import type { MongoConfig, PrimaryPosition, WatchMode } from "../types";
 import { cursorNext, HistoryExpired } from "./recovery-errors";
-import { decodeCommit, record, timestamp } from "./validation";
+import { decodeCommit, record, timestamp } from "../validation";
 
 export interface LiveItem { commit: ICommit; position: PrimaryPosition }
 export interface LivePort {
