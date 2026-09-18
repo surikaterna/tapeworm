@@ -2,16 +2,16 @@ import { EventEmitter } from "node:events";
 import * as crypto from "node:crypto";
 import { BSON } from "mongodb";
 import { afterEach, expect, test, vi } from "vitest";
-import * as validation from "../src/validation";
-import * as references from "../src/quarantine/validation";
-import * as policy from "../src/publication-policy";
-import { CommitPublisher } from "../src/publisher";
-import { ConfirmedChannel, type ConfirmPort, type PublishProperties } from "../src/confirmed-channel";
-import { deliverOutcome, type DeliveryOptions } from "../src/delivery";
-import { MongoQuarantineSourceReader } from "../src/quarantine/source-reader";
-import { handler, handlerScope as scope } from "./quarantine-handler-fixture";
-import { commit, MemoryStore, state } from "./fixtures";
-import { MemoryQuarantine, PolicyPublisher, rejectPolicy } from "./quarantine-fixtures";
+import * as validation from "../../src/validation";
+import * as references from "../../src/quarantine/validation";
+import * as policy from "../../src/rabbitmq/encoding";
+import { CommitPublisher } from "../../src/rabbitmq/publisher";
+import { ConfirmedChannel, type ConfirmPort, type PublishProperties } from "../../src/rabbitmq/confirmed-channel";
+import { deliverOutcome, type DeliveryOptions } from "../../src/delivery/delivery";
+import { MongoQuarantineSourceReader } from "../../src/quarantine/source-reader";
+import { handler, handlerScope as scope } from "./support/handler-fixture";
+import { commit, MemoryStore, state } from "../support/fixtures";
+import { MemoryQuarantine, PolicyPublisher, rejectPolicy } from "./support/fixtures";
 
 vi.mock("node:crypto", { spy: true });
 vi.mock("mongodb", async (importOriginal) => {

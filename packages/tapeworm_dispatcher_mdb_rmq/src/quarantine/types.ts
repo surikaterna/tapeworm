@@ -1,5 +1,5 @@
 import type { ICommit } from "tapeworm";
-import type { RejectionCode } from "../publication-policy";
+import type { RejectionCode } from "../rabbitmq/encoding";
 
 export interface QuarantineScope { feed: string; sourceCollection: string }
 export interface SourceReference extends QuarantineScope {

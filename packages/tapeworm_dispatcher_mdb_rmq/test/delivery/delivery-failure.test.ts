@@ -1,9 +1,9 @@
 import { expect, test, vi } from "vitest";
-import { deliver, deliverOutcome, type DeliveryOptions, type PublisherPort } from "../src/delivery";
-import type { DeliveryFailureHandler, DeliveryFailureResult } from "../src/delivery-failure";
-import { DeliveryHalted } from "../src/delivery-halted";
-import { RecoveryWatcher } from "../src/recovery-watcher";
-import { commit, FakeHistory, FakeLive, item, MemoryStore, state, token } from "./fixtures";
+import { deliver, deliverOutcome, type DeliveryOptions, type PublisherPort } from "../../src/delivery/delivery";
+import type { DeliveryFailureHandler, DeliveryFailureResult } from "../../src/delivery/delivery-failure";
+import { DeliveryHalted } from "../../src/delivery/delivery-halted";
+import { RecoveryWatcher } from "../../src/ingestion/recovery-watcher";
+import { commit, FakeHistory, FakeLive, item, MemoryStore, state, token } from "../support/fixtures";
 
 const progress = { kind: "replay" as const, state: state() };
 function fixture(receipt: DeliveryFailureResult = { kind: "unhandled" }) {

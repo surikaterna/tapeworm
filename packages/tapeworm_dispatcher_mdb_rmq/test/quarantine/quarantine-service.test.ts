@@ -1,10 +1,10 @@
 import { MongoClient } from "mongodb";
 import { expect, test } from "vitest";
-import { QuarantineService } from "../src/quarantine/service";
-import { checkpointFeed } from "../src/feed";
-import { sourceReference } from "../src/quarantine/validation";
-import { commit } from "./fixtures";
-import { MemoryQuarantine, PolicyPublisher, rejectPolicy, request } from "./quarantine-fixtures";
+import { QuarantineService } from "../../src/quarantine/service";
+import { checkpointFeed } from "../../src/checkpoints/feed";
+import { sourceReference } from "../../src/quarantine/validation";
+import { commit } from "../support/fixtures";
+import { MemoryQuarantine, PolicyPublisher, rejectPolicy, request } from "./support/fixtures";
 
 async function setup() {
   const config = { mongodb: { db: new MongoClient("mongodb://localhost").db("unit"), collection: "commits" },

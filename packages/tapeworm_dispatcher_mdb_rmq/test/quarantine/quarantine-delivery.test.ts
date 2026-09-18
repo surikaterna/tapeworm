@@ -1,12 +1,12 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { deliverOutcome, type DeliveryOptions } from "../src/delivery";
-import { MongoQuarantineSourceReader } from "../src/quarantine/source-reader";
-import { handler, handlerScope as scope } from "./quarantine-handler-fixture";
-import { QuarantinePaused } from "../src/quarantine/errors";
-import { RecoveryWatcher } from "../src/recovery-watcher";
-import { commit, FakeHistory, FakeLive, item, MemoryStore, state } from "./fixtures";
-import { MemoryQuarantine, PolicyPublisher, rejectPolicy, mixedPolicy, oversizedCommit } from "./quarantine-fixtures";
-import type { QuarantineConfig, QuarantinedEvent } from "../src/quarantine/types";
+import { deliverOutcome, type DeliveryOptions } from "../../src/delivery/delivery";
+import { MongoQuarantineSourceReader } from "../../src/quarantine/source-reader";
+import { handler, handlerScope as scope } from "./support/handler-fixture";
+import { QuarantinePaused } from "../../src/quarantine/errors";
+import { RecoveryWatcher } from "../../src/ingestion/recovery-watcher";
+import { commit, FakeHistory, FakeLive, item, MemoryStore, state } from "../support/fixtures";
+import { MemoryQuarantine, PolicyPublisher, rejectPolicy, mixedPolicy, oversizedCommit } from "./support/fixtures";
+import type { QuarantineConfig, QuarantinedEvent } from "../../src/quarantine/types";
 
 afterEach(() => { vi.restoreAllMocks(); });
 

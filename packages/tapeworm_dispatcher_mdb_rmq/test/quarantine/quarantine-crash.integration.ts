@@ -3,12 +3,12 @@ import { once } from "node:events";
 import { resolve } from "node:path";
 import { ObjectId } from "mongodb";
 import { expect, test } from "vitest";
-import { CommitPublisher, MongoResumeTokenStore, QuarantineService } from "../index";
-import { record, text } from "../src/validation";
-import { quarantineFixture } from "./quarantine-integration-fixture";
-import { request } from "./quarantine-fixtures";
-import { eventually, mongoUri, rabbit, rabbitUri } from "./services";
-import { state } from "./fixtures";
+import { CommitPublisher, MongoResumeTokenStore, QuarantineService } from "../../index";
+import { record, text } from "../../src/validation";
+import { quarantineFixture } from "./support/integration-fixture";
+import { request } from "./support/fixtures";
+import { eventually, mongoUri, rabbit, rabbitUri } from "../support/services";
+import { state } from "../support/fixtures";
 
 function confirmed(child: ChildProcess): Promise<string> {
   return new Promise((resolveToken, reject) => {
@@ -36,7 +36,7 @@ test.each(["changeStream", "oplog"] as const)("confirmed redrive SIGKILL before 
     sourceRetention: "immutable-until-resolved" });
   const checkpoints = new MongoResumeTokenStore(f.mongodb.db, "checkpoint");
   await checkpoints.save(state()); const before = await checkpoints.load();
-  const child = fork(resolve("dist-worker/test/quarantine-worker.js"), [], { stdio: ["ignore", "inherit", "inherit", "ipc"],
+  const child = fork(resolve("dist-worker/test/quarantine/support/worker.js"), [], { stdio: ["ignore", "inherit", "inherit", "ipc"],
     env: { ...process.env, TEST_MONGODB_URI: mongoUri, TEST_RABBITMQ_URI: rabbitUri, TEST_MODE: mode,
       TEST_DATABASE: f.mongodb.db.databaseName, TEST_EXCHANGE: mq.exchange, TEST_QUARANTINE_ID: f.captured.id } });
   try {

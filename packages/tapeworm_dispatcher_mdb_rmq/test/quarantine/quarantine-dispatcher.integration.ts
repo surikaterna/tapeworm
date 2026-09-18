@@ -1,11 +1,11 @@
 import { expect, test } from "vitest";
-import { Dispatcher, MongoResumeTokenStore, QuarantinePaused, QuarantineFailureHandler } from "../index";
-import type { QuarantinedEvent, QuarantineConfig } from "../index";
-import { quarantineFixture } from "./quarantine-integration-fixture";
-import { eventually, rabbit } from "./services";
-import { commit, token } from "./fixtures";
-import { record } from "../src/validation";
-import { mixedPolicy, oversizedCommit } from "./quarantine-fixtures";
+import { Dispatcher, MongoResumeTokenStore, QuarantinePaused, QuarantineFailureHandler } from "../../index";
+import type { QuarantinedEvent, QuarantineConfig } from "../../index";
+import { quarantineFixture } from "./support/integration-fixture";
+import { eventually, rabbit } from "../support/services";
+import { commit, token } from "../support/fixtures";
+import { record } from "../../src/validation";
+import { mixedPolicy, oversizedCommit } from "./support/fixtures";
 
 test.each(["changeStream", "oplog"] as const)("dispatcher pause is terminal and emits no dispatched success in %s", async (mode) => {
   const mq = await rabbit();

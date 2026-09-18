@@ -1,10 +1,10 @@
 import type { ICommit } from "tapeworm";
-import type { PublisherPort } from "../src/delivery";
-import { encodePublication, type PublicationPolicy, type RejectionCode } from "../src/publication-policy";
+import type { PublisherPort } from "../../../src/delivery/delivery";
+import { encodePublication, type PublicationPolicy, type RejectionCode } from "../../../src/rabbitmq/encoding";
 import type { AttemptResult, ClaimResult, DiagnosticCode, QuarantineRecord, QuarantineScope,
-  QuarantineStore, RedriveRequest, SourceReference } from "../src/quarantine/types";
-import { assertReference } from "../src/quarantine/validation";
-import { commit } from "./fixtures";
+  QuarantineStore, RedriveRequest, SourceReference } from "../../../src/quarantine/types";
+import { assertReference } from "../../../src/quarantine/validation";
+import { commit } from "../../support/fixtures";
 
 export const scope: QuarantineScope = { feed: "feed", sourceCollection: "commits" };
 export const request = { actor: "operator", reason: "transport limit raised" };

@@ -1,8 +1,8 @@
 import { EventEmitter } from "node:events";
-import type { DeliveryFailureContext, DeliveryFailureHandler, DeliveryFailureResult } from "../delivery-failure";
-import { DeliveryHalted } from "../delivery-halted";
-import { checkpointFeed } from "../feed";
-import { rejectionCode } from "../publication-policy";
+import type { DeliveryFailureContext, DeliveryFailureHandler, DeliveryFailureResult } from "../delivery/delivery-failure";
+import { DeliveryHalted } from "../delivery/delivery-halted";
+import { checkpointFeed } from "../checkpoints/feed";
+import { rejectionCode } from "../rabbitmq/encoding";
 import type { DispatcherConfig } from "../types";
 import { QuarantinePaused } from "./errors";
 import { MongoQuarantineSourceReader } from "./source-reader";

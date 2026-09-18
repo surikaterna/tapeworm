@@ -1,10 +1,10 @@
 import { expect, test } from "vitest";
 import { ObjectId, BSON, Long } from "mongodb";
-import { commit } from "./fixtures";
-import { encodePublication, rejectionCode, validatePublicationPolicy, type PublicationPolicy } from "../src/publication-policy";
-import { sourceReference, validateQuarantine, validateRejection, validateCompletion } from "../src/quarantine/validation";
-import { MemoryQuarantine, rejectPolicy, scope } from "./quarantine-fixtures";
-import { CommitPublisher } from "../src/publisher";
+import { commit } from "../support/fixtures";
+import { encodePublication, rejectionCode, validatePublicationPolicy, type PublicationPolicy } from "../../src/rabbitmq/encoding";
+import { sourceReference, validateQuarantine, validateRejection, validateCompletion } from "../../src/quarantine/validation";
+import { MemoryQuarantine, rejectPolicy, scope } from "../quarantine/support/fixtures";
+import { CommitPublisher } from "../../src/rabbitmq/publisher";
 
 function eligible(policy: PublicationPolicy): string | undefined {
   try { encodePublication(commit(1), policy); } catch (error: unknown) { return rejectionCode(error); }

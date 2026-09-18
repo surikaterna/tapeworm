@@ -35,3 +35,8 @@ This does not promise exactly-once notifications or certify custom-handler durab
 
 Clarify operator claim/completion orchestration with private named atomic steps
 (redemeine-nqxf), preserving MongoDB commands, server-time leases and stored audit layout.
+
+For redemeine-lkz5, group generic delivery failures and RabbitMQ encoding with their
+source concerns, and mirror quarantine tests beside their local support fixtures.
+Package-root exports are unchanged; private deep module paths relocate as noted
+in the accompanying major CDC migration changeset, without compatibility shims.

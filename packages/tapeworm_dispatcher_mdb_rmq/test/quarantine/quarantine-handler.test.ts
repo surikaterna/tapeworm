@@ -1,14 +1,14 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { DeliveryHalted } from "../src/delivery-halted";
-import { deliverOutcome } from "../src/delivery";
-import { QuarantineFailureHandler } from "../src/quarantine/failure-handler";
-import { QuarantinePaused } from "../src/quarantine/errors";
-import { MongoQuarantineSourceReader } from "../src/quarantine/source-reader";
-import { encodePublication } from "../src/publication-policy";
-import * as references from "../src/quarantine/validation";
-import { MemoryQuarantine, PolicyPublisher, rejectPolicy } from "./quarantine-fixtures";
-import { base, handler, handlerScope as scope } from "./quarantine-handler-fixture";
-import { commit, MemoryStore, state } from "./fixtures";
+import { DeliveryHalted } from "../../src/delivery/delivery-halted";
+import { deliverOutcome } from "../../src/delivery/delivery";
+import { QuarantineFailureHandler } from "../../src/quarantine/failure-handler";
+import { QuarantinePaused } from "../../src/quarantine/errors";
+import { MongoQuarantineSourceReader } from "../../src/quarantine/source-reader";
+import { encodePublication } from "../../src/rabbitmq/encoding";
+import * as references from "../../src/quarantine/validation";
+import { MemoryQuarantine, PolicyPublisher, rejectPolicy } from "./support/fixtures";
+import { base, handler, handlerScope as scope } from "./support/handler-fixture";
+import { commit, MemoryStore, state } from "../support/fixtures";
 
 afterEach(() => { vi.restoreAllMocks(); });
 function sizeError(): unknown {

@@ -1,7 +1,7 @@
 import { MongoClient } from "mongodb";
-import { CommitPublisher, MongoQuarantineStore, MongoQuarantineSourceReader, QuarantineService, checkpointFeed } from "../index";
-import type { AttemptResult } from "../index";
-import { text } from "../src/validation";
+import { CommitPublisher, MongoQuarantineStore, MongoQuarantineSourceReader, QuarantineService, checkpointFeed } from "../../../index";
+import type { AttemptResult } from "../../../index";
+import { text } from "../../../src/validation";
 
 class BarrierStore extends MongoQuarantineStore {
   override async finish(_id: string, token: string, result: AttemptResult): Promise<boolean> {

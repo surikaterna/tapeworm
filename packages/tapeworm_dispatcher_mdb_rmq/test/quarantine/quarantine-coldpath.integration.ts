@@ -1,12 +1,12 @@
 import { MongoClient } from "mongodb";
 import { afterEach, expect, test, vi } from "vitest";
-import { Dispatcher, MongoQuarantineStore, MongoResumeTokenStore, checkpointFeed, QuarantineFailureHandler } from "../index";
-import * as validation from "../src/validation";
-import * as references from "../src/quarantine/validation";
-import * as publication from "../src/publication-policy";
-import { commit, token } from "./fixtures";
-import { mixedPolicy, oversizedCommit } from "./quarantine-fixtures";
-import { eventually, mongoUri, rabbit, rabbitUri, unique } from "./services";
+import { Dispatcher, MongoQuarantineStore, MongoResumeTokenStore, checkpointFeed, QuarantineFailureHandler } from "../../index";
+import * as validation from "../../src/validation";
+import * as references from "../../src/quarantine/validation";
+import * as publication from "../../src/rabbitmq/encoding";
+import { commit, token } from "../support/fixtures";
+import { mixedPolicy, oversizedCommit } from "./support/fixtures";
+import { eventually, mongoUri, rabbit, rabbitUri, unique } from "../support/services";
 
 afterEach(() => { vi.restoreAllMocks(); });
 async function fixture(exchange: string, mode: "changeStream" | "oplog" = "changeStream") {

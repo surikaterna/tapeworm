@@ -10,10 +10,10 @@ export { QuarantineService } from "./src/quarantine/service";
 export { QuarantinePaused } from "./src/quarantine/errors";
 export { QuarantineFailureHandler } from "./src/quarantine/failure-handler";
 export type { QuarantineFailureHandlerOptions, QuarantineHandlerEvents } from "./src/quarantine/failure-handler";
-export { DeliveryHalted } from "./src/delivery-halted";
-export type { DeliveryFailureContext, DeliveryFailureHandler, DeliveryFailureResult } from "./src/delivery-failure";
+export { DeliveryHalted } from "./src/delivery/delivery-halted";
+export type { DeliveryFailureContext, DeliveryFailureHandler, DeliveryFailureResult } from "./src/delivery/delivery-failure";
 export type { PublisherPort } from "./src/delivery/delivery";
-export type { PublicationPolicy, RejectionCode } from "./src/publication-policy";
+export type { PublicationPolicy, RejectionCode } from "./src/rabbitmq/encoding";
 export type { MongoQuarantineStoreOptions } from "./src/quarantine/mongodb-store";
 export type { QuarantineServiceOptions } from "./src/quarantine/service";
 export type { QuarantineScope, SourceReference, QuarantineStatus, AttemptResult, DiagnosticCode, RedriveRequest,

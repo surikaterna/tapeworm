@@ -1,5 +1,5 @@
 import { ObjectId, MongoServerError, type Collection, type Db } from "mongodb";
-import type { RejectionCode } from "../publication-policy";
+import type { RejectionCode } from "../rabbitmq/encoding";
 import type { AttemptResult, DiagnosticCode, QuarantineScope, QuarantineStore, RedriveRequest,
   SourceReference, QuarantineRecord, QuarantineListOptions, QuarantinePage, ClaimResult } from "./types";
 import { assertReference, assertScope, validateRejection } from "./validation";

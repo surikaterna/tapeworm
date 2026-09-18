@@ -1,7 +1,7 @@
-import { checkpointFeed, MongoQuarantineSourceReader, MongoQuarantineStore } from "../index";
-import { sourceReference } from "../src/quarantine/validation";
-import { oversizedCommit } from "./quarantine-fixtures";
-import { mongo, rabbitUri } from "./services";
+import { checkpointFeed, MongoQuarantineSourceReader, MongoQuarantineStore } from "../../../index";
+import { sourceReference } from "../../../src/quarantine/validation";
+import { oversizedCommit } from "./fixtures";
+import { mongo, rabbitUri } from "../../support/services";
 
 export async function quarantineFixture(leaseMs = 60000, exchange = "quarantine-test", mode: "changeStream" | "oplog" = "changeStream") {
   const mongodb = await mongo();

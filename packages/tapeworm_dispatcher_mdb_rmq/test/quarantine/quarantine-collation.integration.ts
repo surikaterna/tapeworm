@@ -1,12 +1,12 @@
 import { MongoClient, ObjectId, type Db } from "mongodb";
 import { expect, test } from "vitest";
-import { MongoQuarantineSourceReader, MongoQuarantineStore } from "../index";
-import type { QuarantineScope } from "../index";
-import { sourceReference } from "../src/quarantine/validation";
-import { record } from "../src/validation";
-import { commit } from "./fixtures";
-import { request } from "./quarantine-fixtures";
-import { mongoUri, unique } from "./services";
+import { MongoQuarantineSourceReader, MongoQuarantineStore } from "../../index";
+import type { QuarantineScope } from "../../index";
+import { sourceReference } from "../../src/quarantine/validation";
+import { record } from "../../src/validation";
+import { commit } from "../support/fixtures";
+import { request } from "./support/fixtures";
+import { mongoUri, unique } from "../support/services";
 
 async function fixture(strength = 1) {
   const client = await new MongoClient(mongoUri, { monitorCommands: true }).connect();

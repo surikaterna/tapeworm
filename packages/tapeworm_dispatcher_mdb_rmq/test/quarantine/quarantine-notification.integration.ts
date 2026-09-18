@@ -1,10 +1,10 @@
 import { expect, test } from "vitest";
-import { DeliveryHalted, Dispatcher, MongoResumeTokenStore, QuarantineFailureHandler } from "../index";
-import { quarantineFixture } from "./quarantine-integration-fixture";
-import { mixedPolicy, oversizedCommit } from "./quarantine-fixtures";
-import { commit, token } from "./fixtures";
-import { eventually, rabbit } from "./services";
-import { record } from "../src/validation";
+import { DeliveryHalted, Dispatcher, MongoResumeTokenStore, QuarantineFailureHandler } from "../../index";
+import { quarantineFixture } from "./support/integration-fixture";
+import { mixedPolicy, oversizedCommit } from "./support/fixtures";
+import { commit, token } from "../support/fixtures";
+import { eventually, rabbit } from "../support/services";
+import { record } from "../../src/validation";
 
 test.each(["changeStream", "oplog"] as const)("%s post-checkpoint observer failure halts; new dispatcher resumes after saved poison", async (mode) => {
   const mq = await rabbit(); const f = await quarantineFixture(60000, mq.exchange, mode);

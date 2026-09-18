@@ -40,12 +40,12 @@ test("AST dependency reader covers runtime/type imports, reexports, import queri
     export type { D } from './d'; type E = import('./e').E; import f = require('./f');
     const g = require('./g'); const h = import('./h.js'); const ignored = "./not-an-import";`))
     .toEqual(["./a", "./b", "./c", "./d", "./e", "./f", "./g", "./h.js"]);
-  expect(localPath(resolve("src/dispatcher.ts"), "./delivery.js")).toBe(resolve("src/delivery.ts"));
+  expect(localPath(resolve("src/dispatcher.ts"), "./delivery/delivery.js")).toBe(resolve("src/delivery/delivery.ts"));
 });
 
 test("core transitive source graph cannot reach optional implementation or root barrel, including type edges", () => {
   const root = resolve("src"); const barrel = resolve("index.ts");
-  const pending = ["dispatcher", "recovery-watcher", "delivery", "types", "dispatcher-config", "delivery-failure", "delivery-halted"]
+  const pending = ["dispatcher", "ingestion/recovery-watcher", "delivery/delivery", "types", "dispatcher-config", "delivery/delivery-failure", "delivery/delivery-halted"]
     .map((name) => resolve(root, `${name}.ts`));
   const visited = new Set<string>();
   while (pending.length) {
@@ -61,7 +61,7 @@ test("core transitive source graph cannot reach optional implementation or root 
       if (dependency) pending.push(dependency);
     }
   }
-  for (const required of ["publisher", "publication-policy", "validation", "history", "live-source", "feed", "resume/types"]) {
+  for (const required of ["rabbitmq/publisher", "rabbitmq/encoding", "validation", "ingestion/history", "ingestion/live-source", "checkpoints/feed", "checkpoints/types"]) {
     expect(visited.has(resolve(root, `${required}.ts`))).toBe(true);
   }
   expect(visited.size).toBeGreaterThan(15);

@@ -1,12 +1,12 @@
 import { expect, test } from "vitest";
 import { BSON, ObjectId } from "mongodb";
-import { MongoQuarantineSourceReader, MongoQuarantineStore } from "../index";
-import { sourceReference } from "../src/quarantine/validation";
-import { record } from "../src/validation";
-import { commit } from "./fixtures";
-import { quarantineFixture } from "./quarantine-integration-fixture";
-import { request } from "./quarantine-fixtures";
-import { eventually, mongo } from "./services";
+import { MongoQuarantineSourceReader, MongoQuarantineStore } from "../../index";
+import { sourceReference } from "../../src/quarantine/validation";
+import { record } from "../../src/validation";
+import { commit } from "../support/fixtures";
+import { quarantineFixture } from "./support/integration-fixture";
+import { request } from "./support/fixtures";
+import { eventually, mongo } from "../support/services";
 
 test("unique identity capture is concurrent-idempotent, bounded, reference-only and never resets published history", async () => {
   const f = await quarantineFixture();

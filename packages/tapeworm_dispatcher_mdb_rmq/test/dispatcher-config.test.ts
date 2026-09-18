@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { Dispatcher } from "../src/dispatcher";
-import { MemoryStore } from "./fixtures";
+import { MemoryStore } from "./support/fixtures";
 
 test.each(["quarantine", "other", Symbol("private-option")])("unsupported own option %s rejects before accessing dependencies", (key) => {
   const config = { get mongodb(): never { throw new Error("Mongo must not be touched"); } };

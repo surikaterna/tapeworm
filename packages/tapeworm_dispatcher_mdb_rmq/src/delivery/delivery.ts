@@ -3,8 +3,8 @@ import type { DurableProgress, ResumeState } from "../types";
 import type { IResumeTokenStore } from "../checkpoints/types";
 import { isDeepStrictEqual } from "node:util";
 import { decodeState } from "../validation";
-import { snapshotFailureResult, type DeliveryFailureHandler, type FailureReceipt } from "../delivery-failure";
-import { DeliveryHalted } from "../delivery-halted";
+import { snapshotFailureResult, type DeliveryFailureHandler, type FailureReceipt } from "./delivery-failure";
+import { DeliveryHalted } from "./delivery-halted";
 
 export interface PublisherPort {
   connect(): Promise<void>;

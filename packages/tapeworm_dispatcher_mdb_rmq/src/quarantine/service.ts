@@ -1,7 +1,7 @@
 import type { ICommit } from "tapeworm";
-import type { PublisherPort } from "../delivery";
-import { checkpointFeed } from "../feed";
-import { encodePublication, rejectionCode, validatePublicationPolicy } from "../publication-policy";
+import type { PublisherPort } from "../delivery/delivery";
+import { checkpointFeed } from "../checkpoints/feed";
+import { encodePublication, rejectionCode, validatePublicationPolicy } from "../rabbitmq/encoding";
 import type { DispatcherConfig } from "../types";
 import type { AttemptResult, ClaimResult, DiagnosticCode, QuarantineListOptions, QuarantinePage, QuarantineSourceReader,
   QuarantineStore, RedriveOutcome, RedriveRequest, SourceReference } from "./types";

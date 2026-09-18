@@ -534,12 +534,14 @@ root). Internal deep module paths are private and have relocated; no legacy path
 shims are provided. This layout change does not change package-root exports.
 
 `src/dispatcher.ts` owns orchestration; `src/types.ts` and `src/validation.ts`
-hold shared contracts and validation. Implementation concerns are grouped under:
+hold shared contracts and validation. `src/dispatcher-config.ts` keeps the root
+configuration boundary. Implementation concerns are grouped under:
 
 - `src/ingestion/`: live sources, history, recovery and watcher adapters.
 - `src/checkpoints/`: feed identity and resume-store contracts/implementation.
-- `src/delivery/`: confirmed publication and durable checkpoint sequencing.
-- `src/rabbitmq/`: publisher, confirmed channel and connection lifecycle.
+- `src/delivery/`: publication/checkpoint sequencing and generic failure receipts.
+- `src/rabbitmq/`: publisher, confirmed channel, connection lifecycle and encoding.
+- `src/quarantine/`: optional failure adapter, durable records, claims and redrive.
 
 `test/ingestion/`, `test/delivery/` and `test/rabbitmq/` mirror these concerns,
 with unit and integration suites side by side. The mixed Mongo suite stays in
@@ -549,6 +551,10 @@ the test root. `test/system/` contains cross-component crash tests;
 `test/consumer/` checks the packed package-root API outside the workspace.
 `test/cli/` mirrors the `bin/` command-line lifecycle, with its local process and
 shutdown fixtures in `test/cli/support/`.
+`test/quarantine/` mirrors the optional implementation, keeping its query golden
+fixture beside the suites and its four local helpers in `test/quarantine/support/`.
+`test/architecture/` holds the transitive core/optional-feature dependency check;
+dispatcher configuration tests remain at the test root to mirror the source.
 
 ## Qualification commands
 

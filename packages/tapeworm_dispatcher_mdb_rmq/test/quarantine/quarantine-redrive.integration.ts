@@ -1,11 +1,11 @@
 import { expect, test } from "vitest";
-import { CommitPublisher, MongoResumeTokenStore, QuarantineService } from "../index";
-import { record } from "../src/validation";
-import { quarantineFixture } from "./quarantine-integration-fixture";
-import { request } from "./quarantine-fixtures";
-import { rabbit } from "./services";
-import { state } from "./fixtures";
-import { encodePublication } from "../src/publication-policy";
+import { CommitPublisher, MongoResumeTokenStore, QuarantineService } from "../../index";
+import { record } from "../../src/validation";
+import { quarantineFixture } from "./support/integration-fixture";
+import { request } from "./support/fixtures";
+import { rabbit } from "../support/services";
+import { state } from "../support/fixtures";
+import { encodePublication } from "../../src/rabbitmq/encoding";
 
 test.each(["changeStream", "oplog"] as const)("real redrive preserves original body/id and checkpoint in %s feed", async (mode) => {
   const mq = await rabbit();

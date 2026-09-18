@@ -5,7 +5,7 @@ import type { HistoryPort } from "./history";
 import type { LiveItem, LivePort } from "./live-source";
 import { HistoryExpired, RecoveryExhausted } from "./recovery-errors";
 import { decodeState, timestamp, uuid } from "../validation";
-import { DeliveryHalted } from "../delivery-halted";
+import { DeliveryHalted } from "../delivery/delivery-halted";
 
 export type CommitHandler = (commit: ICommit, resumeToken: Record<string, unknown>) => Promise<void>;
 export type ProgressHandler = (commit: ICommit | undefined, progress: DurableProgress) => Promise<void>;

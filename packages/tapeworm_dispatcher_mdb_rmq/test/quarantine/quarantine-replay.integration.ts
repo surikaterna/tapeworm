@@ -1,11 +1,11 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { CommitPublisher, MongoResumeTokenStore, MongoQuarantineSourceReader, QuarantineFailureHandler, type QuarantinedEvent } from "../index";
-import { deliverOutcome } from "../src/delivery";
-import { quarantineFixture } from "./quarantine-integration-fixture";
-import { mixedPolicy, PolicyPublisher, request } from "./quarantine-fixtures";
-import { state } from "./fixtures";
-import { rabbit } from "./services";
-import { record } from "../src/validation";
+import { CommitPublisher, MongoResumeTokenStore, MongoQuarantineSourceReader, QuarantineFailureHandler, type QuarantinedEvent } from "../../index";
+import { deliverOutcome } from "../../src/delivery/delivery";
+import { quarantineFixture } from "./support/integration-fixture";
+import { mixedPolicy, PolicyPublisher, request } from "./support/fixtures";
+import { state } from "../support/fixtures";
+import { rabbit } from "../support/services";
+import { record } from "../../src/validation";
 
 afterEach(() => { vi.restoreAllMocks(); });
 function forbidden(): never { throw new Error("Healthy quarantine access"); }
