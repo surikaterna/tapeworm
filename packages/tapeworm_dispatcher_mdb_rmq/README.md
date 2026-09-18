@@ -529,7 +529,14 @@ capacity. No new CLI/subcommands or automatic CRUD-saga authority are introduced
 
 ## Qualification commands
 
-Use project Node 26 and npm 11.12.1 (not a downgrade of TS 6/Vitest 5):
+The shared local/Jenkins gate is **`./ci/qualify.sh`** from the repository root.
+See [the operator contract](../../ci/README.md) for the Docker-capable Linux agent,
+Node 26.9.0/npm 11.12.1, pinned private services, image smoke, cleanup and main-only
+publication policy. No host Node installation or manually published service ports
+are needed for this command. Production container stop grace must be **30 seconds**
+to leave margin beyond the unchanged ten-second CLI deadline.
+
+For individual developer checks, use Node 26.9.0 and npm 11.12.1:
 
 ```bash
 npm ci
@@ -539,20 +546,8 @@ npm run check --workspace=tapeworm_dispatcher_mdb_rmq
 npm run test:consumer --workspace=tapeworm_dispatcher_mdb_rmq
 ```
 
-Real services on isolated localhost ports (Docker required):
-
-```bash
-docker run -d --name gqxm-mongo -p 127.0.0.1:27187:27017 mongo:8 --replSet rs0 --bind_ip_all
-docker exec gqxm-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
-docker run -d --name gqxm-rabbit -p 127.0.0.1:56787:5672 rabbitmq:4
-docker exec gqxm-rabbit rabbitmq-diagnostics -q ping
-docker run -d --name gqxm-expiry-mongo -p 127.0.0.1:27188:27017 mongo:8 --replSet rs0 --bind_ip_all --oplogSize 1 --syncdelay 1
-docker exec gqxm-expiry-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
-npm run test:integration --workspace=tapeworm_dispatcher_mdb_rmq
-docker rm -f gqxm-mongo gqxm-rabbit gqxm-expiry-mongo
-```
-
-Wait for Mongo primary and Rabbit readiness. `TEST_MONGODB_URI` and
+For individual integration debugging, wait for Mongo primary and Rabbit readiness.
+The shared qualifier provisions/verifies them automatically. `TEST_MONGODB_URI` and
 `TEST_RABBITMQ_URI` override normal test endpoints; `TEST_EXPIRY_MONGODB_URI` must
 point at a dedicated small-oplog test replica set. Its startup storage checkpoint
 interval (`syncdelay`) must be one second for bounded rollover.
@@ -576,7 +571,8 @@ bounded noise to roll a dedicated 1MB oplog past that position, then verify actu
 server history-expiry and recovery. This is not a multi-day outage or scale benchmark.
 
 `test:consumer` packs and installs built declarations outside the workspace under
-`/tmp/opencode`, then compiles positive and negative type fixtures without aliases.
+a unique OS temporary directory, then compiles positive and negative type fixtures
+without aliases and removes only its own scratch directory, even on failure.
 `check` uses strict TS (including tests/CLI, no unchecked indexing, no skipped
 library checks) and type-aware unsafe-operation lint. Unit tests use narrow typed
 ports, not casts of whole Mongo Db or AMQP channels.

@@ -1,81 +1,51 @@
-// Jenkinsfile — Declarative CI/CD pipeline for tapeworm monorepo
-//
-// Operator setup required in Jenkins:
-//   1. Configure a "secret text" credential with ID 'npm-token'
-//      containing your npm registry auth token.
-//   2. Configure a "username/password" credential with ID 'docker-creds'
-//      containing your Docker registry credentials.
-//   3. Configure a "secret text" credential with ID 'docker-registry'
-//      containing your Docker registry hostname (e.g. ghcr.io/yourorg).
-
+// Linux agent with host Docker CLI/daemon access; no socket inside the Node runner.
+// See ci/README.md for isolation, recovery and main-only release prerequisites.
 pipeline {
-    agent {
-        docker { image 'node:26-alpine' }
+    agent { label "${params.DOCKER_AGENT_LABEL ?: 'docker'}" }
+    parameters {
+        string(name: 'DOCKER_AGENT_LABEL', defaultValue: 'docker', description: 'Trusted Linux Docker-capable agent')
     }
-
-    environment {
-        CI = 'true'
-    }
-
+    options { timeout(time: 30, unit: 'MINUTES') }
+    environment { CI = 'true' }
     stages {
-        stage('Install') {
+        stage('Run identity') {
             steps {
-                sh 'npm ci'
+                script {
+                    env.RUN_ID = sh(script: 'read id < /proc/sys/kernel/random/uuid; printf "%s" "$id"', returnStdout: true).trim()
+                }
             }
         }
-
-        stage('Build') {
-            steps {
-                sh 'npm run build'
-            }
+        stage('Qualify source and exact image') {
+            steps { sh './ci/qualify.sh' }
         }
-
-        stage('Test') {
-            steps {
-                sh 'npm run test'
-            }
-        }
-
-        stage('Docker Build') {
-            steps {
-                sh '''
-                    docker build \
-                        -f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile \
-                        -t tapeworm-dispatcher:${BUILD_NUMBER} \
-                        -t tapeworm-dispatcher:latest \
-                        .
-                '''
-            }
-        }
-
-        stage('Publish') {
+        stage('Release preflight without credentials') {
             when { branch 'main' }
-            environment {
-                NPM_TOKEN    = credentials('npm-token')
-                DOCKER_CREDS = credentials('docker-creds')
-                DOCKER_REGISTRY = credentials('docker-registry')
-            }
+            steps { sh './ci/qualify.sh release-preflight' }
+        }
+        stage('Publish qualified artifacts') {
+            when { branch 'main' }
             steps {
-                sh '''
-                    echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
-                    npm run changeset:version
-                    npm run changeset:publish
-                '''
-
-                sh '''
-                    echo "${DOCKER_CREDS_PSW}" | docker login -u "${DOCKER_CREDS_USR}" --password-stdin "${DOCKER_REGISTRY}"
-                    docker tag tapeworm-dispatcher:${BUILD_NUMBER} ${DOCKER_REGISTRY}/tapeworm-dispatcher:${BUILD_NUMBER}
-                    docker tag tapeworm-dispatcher:latest ${DOCKER_REGISTRY}/tapeworm-dispatcher:latest
-                    docker push ${DOCKER_REGISTRY}/tapeworm-dispatcher:${BUILD_NUMBER}
-                    docker push ${DOCKER_REGISTRY}/tapeworm-dispatcher:latest
-                '''
+                withCredentials([
+                    string(credentialsId: 'npm-token', variable: 'NPM_TOKEN'),
+                    usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'DOCKER_CREDS_USR', passwordVariable: 'DOCKER_CREDS_PSW'),
+                    string(credentialsId: 'docker-registry', variable: 'DOCKER_REGISTRY')
+                ]) {
+                    sh './ci/qualify.sh publish'
+                }
             }
         }
     }
-
     post {
         always {
-            cleanWs()
+            script {
+                try {
+                    if (env.RUN_ID) { sh './ci/qualify.sh cleanup' }
+                } finally {
+                    try {
+                        archiveArtifacts artifacts: '.ci-artifacts/*/*.log,.ci-artifacts/*/*.json,.ci-artifacts/*/image-id,.ci-artifacts/*/revision', allowEmptyArchive: true
+                    } finally { deleteDir() }
+                }
+            }
         }
     }
 }
