@@ -14,9 +14,10 @@ export function registry(prefix) {
   return { host, prefix };
 }
 
-/** @param {string} branch @param {string[]} pending @param {string} status */
-export function releasePolicy(branch, pending, status) {
-  assert.equal(branch, 'main', 'Publication is main-only');
+/** @param {string} branch @param {string} tag @param {string[]} pending @param {string} status */
+export function releasePolicy(branch, tag, pending, status) {
+  assert.equal(branch, 'master', 'Publication is master-only');
+  assert.equal(tag, '', 'Tag contexts cannot publish');
   assert.deepEqual(pending, [], 'Prepare and commit reviewed versions before release; pending changesets');
   assert.equal(status, '', 'Release source must be clean, including untracked files');
 }
@@ -60,11 +61,12 @@ function main(mode, art) {
     return;
   }
   assert.equal(mode, 'release-preflight');
-  releasePolicy(process.env.BRANCH_NAME ?? '', readdirSync('.changeset').filter(name => name.endsWith('.md') && name !== 'README.md'),
+  releasePolicy(process.env.BRANCH_NAME ?? '', process.env.TAG_NAME ?? '',
+    readdirSync('.changeset').filter(name => name.endsWith('.md') && name !== 'README.md'),
     execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { encoding: 'utf8' }).trim());
   sameIdentity(JSON.parse(readFileSync(join(art, 'identity.json'), 'utf8')), identity(root, revision));
   verifyNpmRuntimeFiles(root);
-  console.log('Release preflight PASS: committed versions, clean main source, unchanged qualified builds');
+  console.log('Release preflight PASS: committed versions, clean master source, unchanged qualified builds');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

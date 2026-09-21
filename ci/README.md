@@ -6,7 +6,7 @@ The host needs Linux, Bash, Git, GNU coreutils, and Docker CLI plus access to a
 Linux Docker daemon. Registry/npm/Mongo binary download access and enough disk
 for clean builds are required. Docker access is effectively host-root access:
 use dedicated trusted agents, not agents that hold production credentials while
-running untrusted PR code. The default Jenkins label is `docker`; operators must
+running untrusted PR code. The default Jenkins label is `lynx`; operators must
 configure that capability (or override `DOCKER_AGENT_LABEL`). This repository
 does not provision a Jenkins controller or agent.
 
@@ -118,22 +118,30 @@ does not replace its original failure status. Never use global Docker prune.
 service-start failure and SIGTERM, including preservation of unrelated owned
 sentinel resources. It creates no publication credentials.
 
-## Main-only publication, not release preparation
+## Git Flow qualification and master-only publication
 
-Prepare versions in a **reviewed release commit outside CI**. Main publication
+Changes integrate and qualify on **`develop`**. A **`release/*`** branch prepares
+and qualifies reviewed versions before those changes merge to **`master`**.
+Neither `develop` nor `release/*` receives publication credentials or publishes;
+they run the same credential-free qualification used by other branch contexts.
+Prepare versions in a **reviewed release commit outside CI**. Master publication
 rejects pending changeset `.md` files and any tracked/untracked source dirt
 (ignored build outputs are allowed). There is **no** `changeset:version`, Git
-commit, or Git push in Jenkins. The credential-free preflight checks clean main,
+commit, or Git push in Jenkins. The credential-free preflight checks clean master,
 already-committed versions, revision, qualified image receipt, and hashes of the
 same built npm outputs; publication does not rebuild anything.
 
-Only after qualification and preflight does main bind existing credentials
+Only after qualification and preflight does master bind existing credentials
 `npm-token`, `docker-creds`, and `docker-registry`. The registry value is an
 explicit prefix such as `ghcr.io/org` or `registry.example:5000/team`; login uses
 only the host, while image tags preserve the namespace. Temporary npm/Docker
 configuration is outside the build context and removed on exit; npm auth uses
 literal environment substitution and shell tracing is off. The tested image gets
-revision/run and package-version tags first; **`:latest` is main-only and last**.
+revision/run and package-version tags first; **`:latest` is master-only and last**.
+Git tags do not bypass the branch gate: tag builds, including a tag named
+`master`, qualify but cannot preflight or publish. Jenkins excludes tag builds
+from both release stages, and the credential-free policy independently rejects
+tag metadata. Master is the sole publication branch.
 Npm and image publication are not atomic. On partial failure inspect what was
 published and recover manually against the same reviewed versions—never
 automatically rerun versioning. Local qualification/tests never login or publish.

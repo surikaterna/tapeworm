@@ -6,15 +6,32 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-test('Jenkins delegates qualification, checks main before binding credentials, and always cleans', () => {
+test('Jenkins qualifies all contexts but gates preflight and publication on master', () => {
   const pipeline = readFileSync('Jenkinsfile', 'utf8');
-  assert.ok(pipeline.includes("defaultValue: 'docker'"));
+  assert.ok(pipeline.includes("params.DOCKER_AGENT_LABEL ?: 'lynx'"));
+  assert.ok(pipeline.includes("defaultValue: 'lynx'"));
   assert.ok(pipeline.includes("sh './ci/qualify.sh'"));
   assert.ok(pipeline.indexOf('release-preflight') < pipeline.indexOf('withCredentials'));
-  assert.equal(pipeline.match(/when \{ branch 'main' \}/g)?.length, 2);
+  assert.equal(pipeline.match(/branch 'master'/g)?.length, 2);
+  assert.equal(pipeline.match(/not \{ buildingTag\(\) \}/g)?.length, 2);
+  assert.doesNotMatch(pipeline, /branch 'main'/);
   assert.ok(pipeline.includes("sh './ci/qualify.sh cleanup'"));
   assert.ok(pipeline.includes('finally { deleteDir() }'));
   assert.doesNotMatch(pipeline, /changeset:version|catchError|docker \{ image/);
+});
+
+test('only the master publication stage receives credentials', () => {
+  const pipeline = readFileSync('Jenkinsfile', 'utf8');
+  const preflight = pipeline.indexOf("stage('Release preflight without credentials')");
+  const publish = pipeline.indexOf("stage('Publish qualified artifacts')");
+  const credentials = pipeline.indexOf('withCredentials');
+  assert.ok(preflight >= 0 && publish > preflight && credentials > publish);
+  assert.equal(pipeline.match(/withCredentials/g)?.length, 1);
+  assert.doesNotMatch(pipeline.slice(preflight, publish), /withCredentials|credentialsId/);
+  for (const stage of [pipeline.slice(preflight, publish), pipeline.slice(publish)]) {
+    assert.match(stage, /branch 'master'[\s\S]*not \{ buildingTag\(\) \}/);
+  }
+  assert.match(pipeline.slice(publish), /not \{ buildingTag\(\) \}[\s\S]*withCredentials/);
 });
 
 test('qualification gates are ordered, unfiltered, and cannot publish', () => {
@@ -51,5 +68,6 @@ test('publication config is temporary, literal-token-based and never versions so
   assert.ok(release.includes("'//registry.npmjs.org/:_authToken=${NPM_TOKEN}'"));
   assert.ok(release.includes('mktemp -d /tmp/tapeworm-release-'));
   assert.ok(release.includes("trap 'rm -rf -- \"$SECRET_DIR\"' EXIT"));
+  assert.ok(release.includes('-e BRANCH_NAME -e TAG_NAME'));
   assert.doesNotMatch(release, /changeset:version|git commit|git push/);
 });
