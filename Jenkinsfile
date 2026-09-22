@@ -1,9 +1,9 @@
 // Linux agent with host Docker CLI/daemon access; no socket inside the Node runner.
-// See ci/README.md for isolation, recovery and main-only release prerequisites.
+// See ci/README.md for isolation, recovery and master-only publication prerequisites.
 pipeline {
-    agent { label "${params.DOCKER_AGENT_LABEL ?: 'docker'}" }
+    agent { label "${params.DOCKER_AGENT_LABEL ?: 'lynx'}" }
     parameters {
-        string(name: 'DOCKER_AGENT_LABEL', defaultValue: 'docker', description: 'Trusted Linux Docker-capable agent')
+        string(name: 'DOCKER_AGENT_LABEL', defaultValue: 'lynx', description: 'Trusted Linux Docker-capable agent label (default: lynx)')
     }
     options { timeout(time: 30, unit: 'MINUTES') }
     environment { CI = 'true' }
@@ -19,11 +19,21 @@ pipeline {
             steps { sh './ci/qualify.sh' }
         }
         stage('Release preflight without credentials') {
-            when { branch 'main' }
+            when {
+                allOf {
+                    branch 'master'
+                    not { buildingTag() }
+                }
+            }
             steps { sh './ci/qualify.sh release-preflight' }
         }
         stage('Publish qualified artifacts') {
-            when { branch 'main' }
+            when {
+                allOf {
+                    branch 'master'
+                    not { buildingTag() }
+                }
+            }
             steps {
                 withCredentials([
                     string(credentialsId: 'npm-token', variable: 'NPM_TOKEN'),

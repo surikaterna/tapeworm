@@ -560,7 +560,7 @@ dispatcher configuration tests remain at the test root to mirror the source.
 
 The shared local/Jenkins gate is **`./ci/qualify.sh`** from the repository root.
 See [the operator contract](../../ci/README.md) for the Docker-capable Linux agent,
-Node 26.9.0/npm 11.12.1, pinned private services, image smoke, cleanup and main-only
+Node 26.9.0/npm 11.12.1, pinned private services, image smoke, cleanup and master-only
 publication policy. No host Node installation or manually published service ports
 are needed for this command. Production container stop grace must be **30 seconds**
 to leave margin beyond the unchanged ten-second CLI deadline.

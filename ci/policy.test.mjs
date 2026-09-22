@@ -3,17 +3,25 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { registry, releasePolicy, sameIdentity } from './policy.mjs';
 
-test('release permits only already-versioned clean main', () => {
-  releasePolicy('main', [], '');
+test('release permits only already-versioned clean master', () => {
+  releasePolicy('master', '', [], '');
 });
-test('non-main cannot publish', () => {
-  for (const branch of ['feature/test', 'PR-43', '', 'develop']) assert.throws(() => releasePolicy(branch, [], ''));
+test('non-master branch, pull request, and tag contexts cannot publish', () => {
+  const contexts = ['develop', 'release/1.2.0', 'main', 'feature/test', 'PR-43', 'v1.2.0', ''];
+  for (const branch of contexts) {
+    assert.throws(() => releasePolicy(branch, '', [], ''), /master-only/);
+  }
+});
+test('tag metadata rejects publication even when the branch context says master', () => {
+  for (const tag of ['master', 'v1.2.0']) {
+    assert.throws(() => releasePolicy('master', tag, [], ''), /Tag contexts/);
+  }
 });
 test('pending changesets reject release', () => {
-  assert.throws(() => releasePolicy('main', ['pending.md'], ''), /pending changesets/);
+  assert.throws(() => releasePolicy('master', '', ['pending.md'], ''), /pending changesets/);
 });
 test('tracked or untracked source dirt rejects release', () => {
-  for (const status of [' M package.json', '?? secret']) assert.throws(() => releasePolicy('main', [], status), /clean/);
+  for (const status of [' M package.json', '?? secret']) assert.throws(() => releasePolicy('master', '', [], status), /clean/);
 });
 test('registry host parsing preserves namespace and port', () => {
   assert.deepEqual(registry('ghcr.io/org'), { host: 'ghcr.io', prefix: 'ghcr.io/org' });

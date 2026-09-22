@@ -13,7 +13,7 @@ MOUNTS=()
 node_runner() {
     docker run --rm --user "$(id -u):$(id -g)" --label "$LABEL" --label "$PROJECT" \
         --mount "type=bind,src=$ROOT,dst=$ROOT" --workdir "$ROOT" "${MOUNTS[@]}" \
-        -e HOME="$ART/home" -e GIT_OPTIONAL_LOCKS=0 -e BRANCH_NAME "$RUNNER" "$@"
+        -e HOME="$ART/home" -e GIT_OPTIONAL_LOCKS=0 -e BRANCH_NAME -e TAG_NAME "$RUNNER" "$@"
 }
 
 preflight() {
