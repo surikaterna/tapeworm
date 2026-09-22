@@ -6,7 +6,10 @@ pipeline {
         string(name: 'DOCKER_AGENT_LABEL', defaultValue: 'lynx', description: 'Trusted Linux Docker-capable agent label (default: lynx)')
     }
     options { timeout(time: 30, unit: 'MINUTES') }
-    environment { CI = 'true' }
+    environment {
+        CI = 'true'
+        DOCKER_BIN = '/usr/bin/docker'
+    }
     stages {
         stage('Run identity') {
             steps {

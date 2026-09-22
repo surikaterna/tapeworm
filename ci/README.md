@@ -10,6 +10,14 @@ running untrusted PR code. The default Jenkins label is `lynx`; operators must
 configure that capability (or override `DOCKER_AGENT_LABEL`). This repository
 does not provision a Jenkins controller or agent.
 
+Docker CLI selection is explicit and repository-controlled. Jenkins sets
+`DOCKER_BIN=/usr/bin/docker` globally so qualification, release preflight,
+publication, service orchestration, and `post` cleanup all use the host-packaged
+CLI instead of any earlier PATH entry. Local scripts default `DOCKER_BIN` to
+`docker`; set it to an executable command or absolute path (paths containing
+spaces are supported). Every entry point validates the selection before use and
+fails with a corrective message when it is unavailable.
+
 ## Toolchain and gates
 
 `.nvmrc` pins Node **26.9.0**, and the root manifest pins npm **11.12.1**. The
@@ -116,7 +124,8 @@ the same checkout. This is idempotent; cleanup failure fails a successful run bu
 does not replace its original failure status. Never use global Docker prune.
 `TMPDIR=/your/private/temp ./ci/cleanup.test.sh` exercises an actual injected
 service-start failure and SIGTERM, including preservation of unrelated owned
-sentinel resources. It creates no publication credentials.
+sentinel resources. Its failure injection overrides `DOCKER_BIN` directly rather
+than shadowing `docker` through PATH. It creates no publication credentials.
 
 ## Git Flow qualification and master-only publication
 
