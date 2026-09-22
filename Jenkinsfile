@@ -1,14 +1,10 @@
 // Linux agent with host Docker CLI/daemon access; no socket inside the Node runner.
 // See ci/README.md for isolation, recovery and master-only publication prerequisites.
 pipeline {
-    agent { label "${params.DOCKER_AGENT_LABEL ?: 'lynx'}" }
-    parameters {
-        string(name: 'DOCKER_AGENT_LABEL', defaultValue: 'lynx', description: 'Trusted Linux Docker-capable agent label (default: lynx)')
-    }
+    agent { label 'lynx' }
     options { timeout(time: 30, unit: 'MINUTES') }
     environment {
         CI = 'true'
-        DOCKER_BIN = '/usr/bin/docker'
     }
     stages {
         stage('Run identity') {

@@ -8,9 +8,8 @@ import { spawnSync } from 'node:child_process';
 
 test('Jenkins qualifies all contexts but gates preflight and publication on master', () => {
   const pipeline = readFileSync('Jenkinsfile', 'utf8');
-  assert.ok(pipeline.includes("params.DOCKER_AGENT_LABEL ?: 'lynx'"));
-  assert.ok(pipeline.includes("defaultValue: 'lynx'"));
-  assert.ok(pipeline.includes("DOCKER_BIN = '/usr/bin/docker'"));
+  assert.ok(pipeline.includes("agent { label 'lynx' }"));
+  assert.doesNotMatch(pipeline, /DOCKER_AGENT_LABEL|DOCKER_BIN/);
   assert.ok(pipeline.includes("sh './ci/qualify.sh'"));
   assert.ok(pipeline.indexOf('release-preflight') < pipeline.indexOf('withCredentials'));
   assert.equal(pipeline.match(/branch 'master'/g)?.length, 2);
