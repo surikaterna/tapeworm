@@ -10,6 +10,7 @@ test('Jenkins qualifies all contexts but gates preflight and publication on mast
   const pipeline = readFileSync('Jenkinsfile', 'utf8');
   assert.ok(pipeline.includes("params.DOCKER_AGENT_LABEL ?: 'lynx'"));
   assert.ok(pipeline.includes("defaultValue: 'lynx'"));
+  assert.ok(pipeline.includes("DOCKER_BIN = '/usr/bin/docker'"));
   assert.ok(pipeline.includes("sh './ci/qualify.sh'"));
   assert.ok(pipeline.indexOf('release-preflight') < pipeline.indexOf('withCredentials'));
   assert.equal(pipeline.match(/branch 'master'/g)?.length, 2);
@@ -37,13 +38,13 @@ test('only the master publication stage receives credentials', () => {
 test('qualification gates are ordered, unfiltered, and cannot publish', () => {
   const script = readFileSync('ci/qualify.sh', 'utf8');
   const commands = ['npm ci', 'node ci/artifacts.mjs clean', 'npm run build -- --force', 'npm run check -- --force',
-    'npm test -- --force', 'npm run test:consumer', 'npm run test:integration', 'docker build --no-cache'];
+    'npm test -- --force', 'npm run test:consumer', 'npm run test:integration', '"$DOCKER_BIN" build --no-cache'];
   let previous = -1;
   for (const command of commands) {
     const index = script.indexOf(command);
     assert.ok(index > previous, command); previous = index;
   }
-  assert.doesNotMatch(script, /docker login|docker push|changeset:publish|--testNamePattern/);
+  assert.doesNotMatch(script, /login| push|changeset:publish|--testNamePattern/);
 });
 
 test('consumer failure prints child diagnostics and removes only its own portable scratch', () => {

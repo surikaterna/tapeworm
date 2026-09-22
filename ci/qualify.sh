@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+: "${DOCKER_BIN:=docker}"
+DOCKER_EXEC=$(command -v -- "$DOCKER_BIN" 2>/dev/null) || DOCKER_EXEC=''
+if [[ ! -f $DOCKER_EXEC || ! -x $DOCKER_EXEC ]]; then
+    printf 'Docker CLI unavailable: DOCKER_BIN=%s. Set DOCKER_BIN to an executable Docker CLI path or command.\n' "$DOCKER_BIN" >&2
+    exit 127
+fi
+export DOCKER_BIN
 ROOT=$(git rev-parse --show-toplevel)
 cd "$ROOT"
 if [[ -z ${RUN_ID:-} ]]; then read -r RUN_ID < /proc/sys/kernel/random/uuid; fi
@@ -15,20 +22,20 @@ export ROOT ART NET LABEL PROJECT
 
 cleanup() {
     local result=0 ids
-    ids=$(docker ps -aq --filter "label=$LABEL" --filter "label=$PROJECT") || return 1
-    if [[ -n $ids ]]; then docker rm -fv $ids || result=1; fi
-    ids=$(docker network ls -q --filter "label=$LABEL" --filter "label=$PROJECT") || return 1
-    if [[ -n $ids ]]; then docker network rm $ids || result=1; fi
-    ids=$(docker volume ls -q --filter "label=$LABEL" --filter "label=$PROJECT") || return 1
-    if [[ -n $ids ]]; then docker volume rm $ids || result=1; fi
+    ids=$("$DOCKER_BIN" ps -aq --filter "label=$LABEL" --filter "label=$PROJECT") || return 1
+    if [[ -n $ids ]]; then "$DOCKER_BIN" rm -fv $ids || result=1; fi
+    ids=$("$DOCKER_BIN" network ls -q --filter "label=$LABEL" --filter "label=$PROJECT") || return 1
+    if [[ -n $ids ]]; then "$DOCKER_BIN" network rm $ids || result=1; fi
+    ids=$("$DOCKER_BIN" volume ls -q --filter "label=$LABEL" --filter "label=$PROJECT") || return 1
+    if [[ -n $ids ]]; then "$DOCKER_BIN" volume rm $ids || result=1; fi
     return "$result"
 }
 
 diagnostics() {
     local id
-    for id in $(docker ps -aq --filter "label=$LABEL" --filter "label=$PROJECT"); do
-        docker logs --tail 200 "$id" > "$ART/$id.log" 2>&1 || :
-        docker inspect --format '{{json .State}}' "$id" > "$ART/$id.state.json" || :
+    for id in $("$DOCKER_BIN" ps -aq --filter "label=$LABEL" --filter "label=$PROJECT"); do
+        "$DOCKER_BIN" logs --tail 200 "$id" > "$ART/$id.log" 2>&1 || :
+        "$DOCKER_BIN" inspect --format '{{json .State}}' "$id" > "$ART/$id.state.json" || :
     done
 }
 
@@ -67,19 +74,19 @@ LOG_PID=$!
 
 preflight() {
     [[ $(uname -s) == Linux ]]
-    command -v docker; command -v git; command -v timeout
+    command -v -- "$DOCKER_BIN"; command -v git; command -v timeout
     bash -n ci/qualify.sh ci/services.sh ci/release.sh ci/cleanup.test.sh
-    [[ $(docker info --format '{{.OSType}}') == linux ]]
+    [[ $("$DOCKER_BIN" info --format '{{.OSType}}') == linux ]]
     [[ $(< .nvmrc) == 26.9.0 ]]
     [[ -w $ROOT ]]
     printf 'Run %s; source %s; workspace %s\n' "$RUN_ID" "$(git rev-parse HEAD)" "$ROOT"
-    docker version
+    "$DOCKER_BIN" version
     local image
-    for image in node:26.9.0-alpine mongo:8.3.9 rabbitmq:4.3.6; do docker pull "$image"; done
-    docker build --pull -f ci/Dockerfile -t "tapeworm-ci:$RUN_ID" .
-    RUNNER=$(docker image inspect --format '{{.Id}}' "tapeworm-ci:$RUN_ID")
+    for image in node:26.9.0-alpine mongo:8.3.9 rabbitmq:4.3.6; do "$DOCKER_BIN" pull "$image"; done
+    "$DOCKER_BIN" build --pull -f ci/Dockerfile -t "tapeworm-ci:$RUN_ID" .
+    RUNNER=$("$DOCKER_BIN" image inspect --format '{{.Id}}' "tapeworm-ci:$RUN_ID")
     export RUNNER
-    docker image inspect --format '{{.Id}} {{json .RepoDigests}}' \
+    "$DOCKER_BIN" image inspect --format '{{.Id}} {{json .RepoDigests}}' \
         node:26.9.0-bookworm node:26.9.0-alpine mongo:8.3.9 rabbitmq:4.3.6
 }
 
@@ -98,7 +105,7 @@ git_mounts() {
 }
 
 runner() {
-    docker run --rm --name "tw-$RUN_ID-runner" --label "$LABEL" --label "$PROJECT" \
+    "$DOCKER_BIN" run --rm --name "tw-$RUN_ID-runner" --label "$LABEL" --label "$PROJECT" \
         --network "$NET" --user "$(id -u):$(id -g)" \
         --mount "type=bind,src=$ROOT,dst=$ROOT" --workdir "$ROOT" \
         --mount "type=bind,src=$ART/tmp,dst=/tmp" "${GIT_MOUNTS[@]}" \
@@ -136,16 +143,16 @@ build_image() {
     local version core_version
     version=$(runner node -p 'require("./packages/tapeworm_dispatcher_mdb_rmq/package.json").version')
     core_version=$(runner node -p 'require("./packages/tapeworm/package.json").version')
-    docker build --no-cache --pull --force-rm -f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile \
+    "$DOCKER_BIN" build --no-cache --pull --force-rm -f packages/tapeworm_dispatcher_mdb_rmq/Dockerfile \
         --build-arg "REVISION=$(git rev-parse HEAD)" --build-arg "VERSION=$version" \
         --build-arg "CORE_VERSION=$core_version" -t "tapeworm-dispatcher:$RUN_ID" .
     rm -- "$SENTINEL"
     SENTINEL=''
-    IMAGE=$(docker image inspect --format '{{.Id}}' "tapeworm-dispatcher:$RUN_ID")
+    IMAGE=$("$DOCKER_BIN" image inspect --format '{{.Id}}' "tapeworm-dispatcher:$RUN_ID")
     export IMAGE
     printf '%s\n' "$IMAGE" > "$ART/image-id"
     git rev-parse HEAD > "$ART/revision"
-    docker image inspect --format '{{.Id}} {{json .Config.Labels}}' "$IMAGE"
+    "$DOCKER_BIN" image inspect --format '{{.Id}} {{json .Config.Labels}}' "$IMAGE"
     runner node ci/policy.mjs verify-artifacts "$ART"
     "$ROOT/ci/services.sh" smoke
 }
