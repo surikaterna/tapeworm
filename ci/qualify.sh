@@ -2,6 +2,9 @@
 set -Eeuo pipefail
 
 : "${DOCKER_BIN:=docker}"
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+DIAGNOSTIC_PHASE=${1:-qualification}
+"$SCRIPT_DIR/diagnostics.sh" "$DIAGNOSTIC_PHASE" || :
 DOCKER_EXEC=$(command -v -- "$DOCKER_BIN" 2>/dev/null) || DOCKER_EXEC=''
 if [[ ! -f $DOCKER_EXEC || ! -x $DOCKER_EXEC ]]; then
     printf 'Docker CLI unavailable: DOCKER_BIN=%s. Set DOCKER_BIN to an executable Docker CLI path or command.\n' "$DOCKER_BIN" >&2
@@ -21,31 +24,32 @@ mkdir -p "$ART/home" "$ART/tmp"
 export ROOT ART NET LABEL PROJECT
 
 cleanup() {
-    local result=0 ids
-    ids=$("$DOCKER_BIN" ps -aq --filter "label=$LABEL" --filter "label=$PROJECT") || return 1
-    if [[ -n $ids ]]; then "$DOCKER_BIN" rm -fv $ids || result=1; fi
-    ids=$("$DOCKER_BIN" network ls -q --filter "label=$LABEL" --filter "label=$PROJECT") || return 1
-    if [[ -n $ids ]]; then "$DOCKER_BIN" network rm $ids || result=1; fi
-    ids=$("$DOCKER_BIN" volume ls -q --filter "label=$LABEL" --filter "label=$PROJECT") || return 1
-    if [[ -n $ids ]]; then "$DOCKER_BIN" volume rm $ids || result=1; fi
+    local result=0 ids command_status
+    ids=$("$DOCKER_BIN" ps -aq --filter "label=$LABEL" --filter "label=$PROJECT" 2>/dev/null) || { command_status=$?; return "$command_status"; }
+    if [[ -n $ids ]]; then "$DOCKER_BIN" rm -fv $ids 2>/dev/null || result=$?; fi
+    ids=$("$DOCKER_BIN" network ls -q --filter "label=$LABEL" --filter "label=$PROJECT" 2>/dev/null) || { command_status=$?; return "$command_status"; }
+    if [[ -n $ids ]]; then "$DOCKER_BIN" network rm $ids 2>/dev/null || result=$?; fi
+    ids=$("$DOCKER_BIN" volume ls -q --filter "label=$LABEL" --filter "label=$PROJECT" 2>/dev/null) || { command_status=$?; return "$command_status"; }
+    if [[ -n $ids ]]; then "$DOCKER_BIN" volume rm $ids 2>/dev/null || result=$?; fi
     return "$result"
 }
 
 diagnostics() {
     local id
-    for id in $("$DOCKER_BIN" ps -aq --filter "label=$LABEL" --filter "label=$PROJECT"); do
+    for id in $("$DOCKER_BIN" ps -aq --filter "label=$LABEL" --filter "label=$PROJECT" 2>/dev/null); do
         "$DOCKER_BIN" logs --tail 200 "$id" > "$ART/$id.log" 2>&1 || :
-        "$DOCKER_BIN" inspect --format '{{json .State}}' "$id" > "$ART/$id.state.json" || :
+        "$DOCKER_BIN" inspect --format '{{json .State}}' "$id" > "$ART/$id.state.json" 2>/dev/null || :
     done
 }
 
 finish() {
-    local status=$?
+    local status=$? cleanup_status
     trap - EXIT INT TERM
     if (( status != 0 )); then diagnostics; fi
-    if ! cleanup; then
+    cleanup || cleanup_status=$?
+    if [[ -n ${cleanup_status:-} ]]; then
         printf 'Cleanup incomplete; recover by run labels: %s\n' "$RUN_ID" >&2
-        if (( status == 0 )); then status=1; fi
+        if (( status == 0 )); then status=$cleanup_status; fi
     fi
     if [[ -n ${SENTINEL:-} ]]; then rm -f -- "$SENTINEL"; fi
     if (( status == 0 )) && [[ -n ${IMAGE:-} ]]; then
@@ -75,8 +79,8 @@ LOG_PID=$!
 preflight() {
     [[ $(uname -s) == Linux ]]
     command -v -- "$DOCKER_BIN"; command -v git; command -v timeout
-    bash -n ci/qualify.sh ci/services.sh ci/release.sh ci/cleanup.test.sh
-    [[ $("$DOCKER_BIN" info --format '{{.OSType}}') == linux ]]
+    bash -n ci/qualify.sh ci/diagnostics.sh ci/services.sh ci/release.sh ci/cleanup.test.sh
+    require_linux_docker
     [[ $(< .nvmrc) == 26.9.0 ]]
     [[ -w $ROOT ]]
     printf 'Run %s; source %s; workspace %s\n' "$RUN_ID" "$(git rev-parse HEAD)" "$ROOT"
@@ -88,6 +92,28 @@ preflight() {
     export RUNNER
     "$DOCKER_BIN" image inspect --format '{{.Id}} {{json .RepoDigests}}' \
         node:26.9.0-bookworm node:26.9.0-alpine mongo:8.3.9 rabbitmq:4.3.6
+}
+
+require_linux_docker() {
+    local ostype status
+    if ostype=$("$DOCKER_BIN" info --format '{{.OSType}}' 2>/dev/null); then
+        status=0
+    else
+        status=$?
+    fi
+    if ((status != 0)); then
+        printf 'Linux Docker capability check failed (exit %d). Verify daemon access and run ci/diagnostics.sh; endpoint details are intentionally suppressed.\n' "$status" >&2
+        return "$status"
+    fi
+    if [[ ! $ostype =~ ^[0-9A-Za-z._+-]+$ ]]; then
+        printf 'Linux Docker capability check failed: daemon returned an unexpected OSType; value suppressed.\n' >&2
+        return 1
+    fi
+    if [[ $ostype != linux ]]; then
+        printf 'Linux Docker capability check failed: daemon OSType=%q; a Linux daemon is required.\n' "$ostype" >&2
+        return 1
+    fi
+    printf 'Linux Docker capability check passed.\n'
 }
 
 git_mounts() {

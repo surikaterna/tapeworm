@@ -31,7 +31,7 @@ test('local default resolves docker from PATH and routes every cleanup query thr
     delete env.DOCKER_BIN;
     const result = cleanupWith(env, 'docker-default-test');
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), [
+    assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n').slice(-3), [
       'ps -aq --filter label=org.tapeworm.ci.run=docker-default-test --filter label=org.tapeworm.ci.project=qualification',
       'network ls -q --filter label=org.tapeworm.ci.run=docker-default-test --filter label=org.tapeworm.ci.project=qualification',
       'volume ls -q --filter label=org.tapeworm.ci.run=docker-default-test --filter label=org.tapeworm.ci.project=qualification',
@@ -52,7 +52,9 @@ test('explicit Docker path wins over PATH and supports spaces', () => {
       ...process.env, PATH: `${bin}:${process.env.PATH}`, DOCKER_BIN: selected, DOCKER_LOG: log,
     }, 'docker-override-test');
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(readFileSync(log, 'utf8').trim().split('\n').length, 3);
+    assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n').slice(-3).map((call) => call.split(' ')[0]), [
+      'ps', 'network', 'volume',
+    ]);
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 });
 
@@ -82,6 +84,7 @@ test('all host entry points validate selection and contain no bare Docker execut
   assert.match(qualify, /export DOCKER_BIN[\s\S]*ci\/release\.sh[\s\S]*ci\/services\.sh/);
   assert.match(cleanup, /DOCKER_BIN="\$SCRATCH\/docker" RUN_ID="\$FAIL" \.\/ci\/qualify\.sh/);
   assert.doesNotMatch(cleanup, /PATH="\$SCRATCH:/);
-  assert.ok(jenkins.includes("DOCKER_BIN = '/usr/bin/docker'"));
+  assert.doesNotMatch(jenkins, /DOCKER_BIN|DOCKER_AGENT_LABEL/);
+  assert.ok(jenkins.includes("agent { label 'lynx' }"));
   assert.ok(jenkins.includes("sh './ci/qualify.sh cleanup'"));
 });

@@ -6,15 +6,12 @@ The host needs Linux, Bash, Git, GNU coreutils, and Docker CLI plus access to a
 Linux Docker daemon. Registry/npm/Mongo binary download access and enough disk
 for clean builds are required. Docker access is effectively host-root access:
 use dedicated trusted agents, not agents that hold production credentials while
-running untrusted PR code. The default Jenkins label is `lynx`; operators must
-configure that capability (or override `DOCKER_AGENT_LABEL`). This repository
+running untrusted PR code. Jenkins requires the hardcoded `lynx` agent label;
+operators must configure that capability. This repository
 does not provision a Jenkins controller or agent.
 
-Docker CLI selection is explicit and repository-controlled. Jenkins sets
-`DOCKER_BIN=/usr/bin/docker` globally so qualification, release preflight,
-publication, service orchestration, and `post` cleanup all use the host-packaged
-CLI instead of any earlier PATH entry. Local scripts default `DOCKER_BIN` to
-`docker`; set it to an executable command or absolute path (paths containing
+Docker CLI selection is explicit and script-controlled. Scripts default
+`DOCKER_BIN` to `docker`; set it to an executable command or absolute path (paths containing
 spaces are supported). Every entry point validates the selection before use and
 fails with a corrective message when it is unavailable.
 
@@ -117,6 +114,15 @@ inspection); qualification logs retain the last 2 MiB. Local evidence lives in
 `.ci-artifacts/<RUN_ID>/`. Jenkins archives logs/identity then deletes its
 workspace. Local built images and build cache remain for independent audit;
 there is no global prune. Remove only known run image tags after audit.
+
+Before qualification and during explicit cleanup, `ci/diagnostics.sh` emits a
+nonfatal, allowlisted host/Docker report. It includes agent/workspace paths,
+Docker resolution and controlled file metadata, client/server versions, context
+name, tool paths, and the Linux-daemon probe status. It suppresses probe stderr
+and never prints the full environment, Docker endpoint/configuration, registry
+values, or credentials. The report performs no mutating Docker operation. Run it
+directly when investigating agent drift; qualification separately enforces the
+Linux capability and reports a corrective failure without exposing endpoints.
 
 Lost daemon/agent or SIGKILL cannot guarantee automatic teardown. On recovery,
 inspect the two labels, then run `RUN_ID=<recorded-id> ./ci/qualify.sh cleanup` in
