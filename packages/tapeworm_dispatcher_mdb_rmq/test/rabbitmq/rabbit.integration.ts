@@ -18,6 +18,47 @@ test("real mandatory return wins over ACK, durable routing delivers stable messa
   } finally { await publisher.close(); await env.close(); }
 });
 
+test("real headers binding routes only the first event's aggregate type", async () => {
+  const env = await rabbit();
+  const typedQueue = `${env.queue}_typed`;
+  const publisher = new CommitPublisher({ uri: rabbitUri, exchange: env.exchange, confirmTimeoutMs: 3000 }, "acme");
+  try {
+    await env.channel.assertQueue(typedQueue, { durable: true });
+    await env.channel.bindQueue(typedQueue, env.exchange, "", {
+      "x-match": "all", collection: "commits", aggregateType: "billing",
+    });
+    await publisher.connect();
+    const first = commit(21);
+    first.events = [{ id: "first", type: "billing.invoice.paid", payload: {} },
+      { id: "other", type: "shipping.sent", payload: {} }];
+    await publisher.publish(first, "commits");
+    const routed = await env.channel.get(typedQueue, { noAck: true });
+    if (!routed) throw new Error("No aggregate-type routed message");
+    expect(routed.properties.headers).toMatchObject({ collection: "commits", partitionId: "master",
+      streamId: "stream", tenant: "acme", aggregateType: "billing" });
+    expect(routed.properties).toMatchObject({ contentType: "application/json", deliveryMode: 2,
+      messageId: first.id });
+    expect(routed.properties.correlationId).toEqual(expect.any(String));
+    expect(routed.content.toString()).toBe(JSON.stringify(first));
+
+    const invalid = commit(22);
+    invalid.events = [];
+    await publisher.publish(invalid, "commits");
+    const fallback = await env.channel.get(env.queue, { noAck: true });
+    if (!fallback) throw new Error("No fallback message");
+    expect(fallback.properties.messageId).toBe(first.id);
+    const omitted = await env.channel.get(env.queue, { noAck: true });
+    if (!omitted) throw new Error("No published empty-event message");
+    expect(omitted.properties.headers).not.toHaveProperty("aggregateType");
+    expect(omitted.properties.messageId).toBe(invalid.id);
+    expect(await env.channel.get(typedQueue, { noAck: true })).toBe(false);
+  } finally {
+    await publisher.close();
+    await env.channel.deleteQueue(typedQueue);
+    await env.close();
+  }
+});
+
 test("channel-only broker close reconnects; stop rejects future publication", async () => {
   const env = await rabbit();
   const publisher = new CommitPublisher({ uri: rabbitUri, exchange: env.exchange, confirmTimeoutMs: 3000 });
