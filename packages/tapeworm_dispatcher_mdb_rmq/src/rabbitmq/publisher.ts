@@ -4,6 +4,14 @@ import { ConfirmedChannel } from "./confirmed-channel";
 import { openRabbit, type RabbitConnection } from "./connection";
 import { encodePublication, validatePublicationPolicy, type PublicationPolicy } from "./encoding";
 
+export function aggregateTypeHeader(commit: ICommit): string | undefined {
+  const type: unknown = commit.events[0]?.type;
+  if (typeof type !== "string" || !type) return undefined;
+  const dot = type.indexOf(".");
+  const prefix = dot === -1 ? type : type.slice(0, dot);
+  return prefix || undefined;
+}
+
 /** Persistent mandatory publication. Failure is retried from the durable CDC position. */
 export class CommitPublisher {
   private resource?: RabbitConnection;
@@ -93,6 +101,8 @@ export class CommitPublisher {
     const headers: Record<string, string> = { collection: collectionName,
       partitionId: commit.partitionId, streamId: commit.streamId };
     if (this.tenant) headers.tenant = this.tenant;
+    const aggregateType = aggregateTypeHeader(commit);
+    if (aggregateType) headers.aggregateType = aggregateType;
     await confirmed.publish(this.config.exchange, body, {
       contentType: "application/json", deliveryMode: 2, messageId: commit.id,
       timestamp: Math.floor(Date.now() / 1000), headers,

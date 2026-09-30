@@ -268,7 +268,20 @@ limitations are unacceptable. Change streams remain the recommended default.
 Body: JSON of the entire validated `ICommit` including `events[]` and its domain
 fields. Properties: `contentType=application/json`, `deliveryMode=2`,
 `messageId=commit.id`, per-attempt `correlationId`, Unix `timestamp`, `mandatory=true`.
-Headers: `collection`, `partitionId`, `streamId`, optional `tenant`.
+Headers: `collection`, `partitionId`, `streamId`, optional `tenant`, and optional
+`aggregateType`. The latter is the prefix before the **first** dot in the first
+event's `type`: `billing.invoice.paid` produces `aggregateType=billing`. An
+undotted nonempty type uses the entire string. An empty `events[]` is valid and
+publishes without this header; a leading-dot first type also omits the header.
+Direct `CommitPublisher` calls with a missing, non-string, or empty first type
+omit the header without blocking publication, but the relay's ingestion decoder
+rejects those invalid event types before they reach the publisher. Later event
+types do not supply a fallback. For example, bind a queue to the headers
+exchange with `{ "x-match": "all", collection: "commits",
+aggregateType: "billing" }` to route billing commits. This is routing metadata,
+not a validation or ordering guarantee: mixed-type commits route by the first
+event only. Provision a separate binding/queue if commits without this header
+must be consumed; mandatory routing only requires one matching queue.
 
 ## Durable poison quarantine (SDK, redemeine-1i0g)
 
