@@ -1,5 +1,11 @@
 # tapeworm_persistence_store_indexeddb
 
+## 0.4.1
+
+### Patch Changes
+
+- ceea5df: Upgrade slf dependencies.
+
 ## 0.4.0
 
 ### Minor Changes

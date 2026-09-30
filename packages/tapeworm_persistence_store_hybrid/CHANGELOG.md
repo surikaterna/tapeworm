@@ -1,5 +1,11 @@
 # tapeworm_persistence_store_hybrid
 
+## 1.1.1
+
+### Patch Changes
+
+-   ceea5df: Upgrade slf dependencies.
+
 ## 1.1.0
 
 ### Minor Changes
