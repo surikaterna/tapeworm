@@ -1,5 +1,11 @@
 # tapeworm_persistence_store_remote
 
+## 1.2.1
+
+### Patch Changes
+
+- ceea5df: Upgrade slf dependencies.
+
 ## 1.2.0
 
 ### Minor Changes
