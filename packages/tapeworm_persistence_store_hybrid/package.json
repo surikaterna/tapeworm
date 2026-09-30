@@ -31,6 +31,6 @@
   },
   "dependencies": {
     "bluebird": "^3.7.2",
-    "slf": "^1.0.3"
+    "slf": "^2.1.0"
   }
 }
