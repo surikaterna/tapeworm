@@ -29,6 +29,7 @@ export function exposeSmokeIdentity(root, runId, afterOpen = () => {}) {
     const run = ownedOpen(`/proc/self/fd/${parent}/${runId}`, dirs, 'directory');
     const identity = ownedOpen(`/proc/self/fd/${run}/identity.json`, files, 'file');
     afterOpen();
+    assert.equal(fstatSync(identity).nlink, 1, 'Image-smoke identity must not have hard links');
     fchmodSync(identity, 0o644);
     fchmodSync(run, 0o711);
   } finally {

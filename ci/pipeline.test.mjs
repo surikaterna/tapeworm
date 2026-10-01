@@ -1,7 +1,7 @@
 // @ts-check
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, writeFileSync, rmSync, readdirSync, mkdirSync, statSync, chmodSync, symlinkSync, renameSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, rmSync, readdirSync, mkdirSync, statSync, chmodSync, symlinkSync, renameSync, linkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -150,6 +150,21 @@ test('path substitution after open cannot redirect descriptor-pinned chmod', () 
     assert.equal(statSync(join(held, 'original.json')).mode & 0o777, 0o644);
     assert.equal(statSync(target).mode & 0o777, 0o700);
     assert.equal(statSync(targetFile).mode & 0o777, 0o600);
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});
+
+test('hard-linked identity cannot expose private evidence or open the run directory', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'smoke-hardlink-'));
+  try {
+    const parent = join(scratch, '.ci-artifacts'); mkdirSync(parent, { mode: 0o700 });
+    const art = join(parent, 'run'); mkdirSync(art, { mode: 0o700 });
+    const log = join(art, 'qualification.log'); writeFileSync(log, 'private', { mode: 0o600 });
+    const identity = join(art, 'identity.json'); linkSync(log, identity);
+    assert.equal(statSync(identity).nlink, 2);
+    assert.throws(() => exposeSmokeIdentity(scratch, 'run'), /hard links/);
+    assert.equal(statSync(log).mode & 0o777, 0o600);
+    assert.equal(statSync(identity).mode & 0o777, 0o600);
+    assert.equal(statSync(art).mode & 0o777, 0o700);
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 });
 
