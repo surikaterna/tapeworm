@@ -15,7 +15,18 @@ pipeline {
             }
         }
         stage('Qualify source and exact image') {
-            steps { sh './ci/qualify.sh' }
+            steps {
+                sh '''
+                    set -eu
+                    umask 077
+                    test ! -L .ci-artifacts
+                    mkdir -p .ci-artifacts
+                    mkdir -m 700 ".ci-artifacts/$RUN_ID"
+                    mkdir -m 700 ".ci-artifacts/$RUN_ID/docker-anonymous"
+                    export DOCKER_CONFIG="$PWD/.ci-artifacts/$RUN_ID/docker-anonymous"
+                    ./ci/qualify.sh
+                '''
+            }
         }
         stage('Release preflight without credentials') {
             when {
