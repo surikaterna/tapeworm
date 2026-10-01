@@ -1,10 +1,11 @@
 // @ts-check
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, writeFileSync, rmSync, readdirSync, mkdirSync, statSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, rmSync, readdirSync, mkdirSync, statSync, chmodSync, symlinkSync, renameSync, linkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { exposeSmokeIdentity } from './expose-smoke-identity.mjs';
 
 test('Jenkins qualifies all contexts but gates preflight and publication on master', () => {
   const pipeline = readFileSync('Jenkinsfile', 'utf8');
@@ -89,6 +90,111 @@ test('qualification gates are ordered, unfiltered, and cannot publish', () => {
   }
   assert.doesNotMatch(script, /login| push|changeset:publish|--testNamePattern/);
 });
+
+test('image smoke grants only owned regular identity read and run-directory traversal', () => {
+  const script = readFileSync('ci/qualify.sh', 'utf8');
+  const identityGate = 'runner node ci/policy.mjs identity "$ART"';
+  const exposure = 'runner node ci/expose-smoke-identity.mjs "$ROOT" "$RUN_ID"';
+  assert.ok(script.indexOf(identityGate) >= 0 && script.indexOf(identityGate) < script.indexOf(exposure));
+  assert.ok(script.indexOf(exposure) < script.indexOf('"$ROOT/ci/services.sh" smoke'));
+  assert.doesNotMatch(script, /chmod .*\$ART/);
+  const scratch = mkdtempSync(join(tmpdir(), 'smoke-evidence-'));
+  try {
+    const parent = join(scratch, '.ci-artifacts'); mkdirSync(parent, { mode: 0o700 });
+    const art = join(parent, 'run'); mkdirSync(art, { mode: 0o700 });
+    const identity = join(art, 'identity.json');
+    const config = join(art, 'docker-anonymous'); mkdirSync(config, { mode: 0o700 });
+    const log = join(art, 'qualification.log'); writeFileSync(log, 'private', { mode: 0o600 });
+    writeFileSync(identity, '{}', { mode: 0o600 });
+    const run = () => exposeSmokeIdentity(scratch, 'run');
+    run();
+    /** @type {[string, number][]} */
+    const permissions = [[parent, 0o700], [art, 0o711], [identity, 0o644],
+      [config, 0o700], [log, 0o600]];
+    for (const [path, mode] of permissions) {
+      assert.equal(statSync(path).mode & 0o777, mode, path);
+    }
+    chmodSync(art, 0o700);
+    rmSync(identity); symlinkSync(log, identity);
+    assert.throws(run, 'symlink identity must fail closed');
+    assert.equal(statSync(art).mode & 0o777, 0o700);
+    assert.equal(statSync(log).mode & 0o777, 0o600);
+    rmSync(identity); mkdirSync(identity, { mode: 0o700 });
+    assert.throws(run, 'non-regular identity must fail closed');
+    rmSync(identity, { recursive: true }); writeFileSync(identity, '{}', { mode: 0o600 });
+    const alias = join(parent, 'alias'); symlinkSync(art, alias);
+    assert.throws(() => exposeSmokeIdentity(scratch, 'alias'), 'symlink run directory must fail closed');
+    assert.throws(() => exposeSmokeIdentity(scratch, '../run'), 'unsafe RUN_ID must fail closed');
+    assert.throws(() => exposeSmokeIdentity('relative', 'run'), 'relative root must fail closed');
+    assert.equal(statSync(art).mode & 0o777, 0o700);
+    assert.equal(statSync(identity).mode & 0o777, 0o600);
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});
+
+test('path substitution after open cannot redirect descriptor-pinned chmod', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'smoke-swap-'));
+  try {
+    const parent = join(scratch, '.ci-artifacts'); mkdirSync(parent, { mode: 0o700 });
+    const art = join(parent, 'run'); mkdirSync(art, { mode: 0o700 });
+    const identity = join(art, 'identity.json'); writeFileSync(identity, '{}', { mode: 0o600 });
+    const held = join(parent, 'held');
+    const target = join(scratch, 'target'); mkdirSync(target, { mode: 0o700 });
+    const targetFile = join(target, 'identity.json'); writeFileSync(targetFile, 'private', { mode: 0o600 });
+    exposeSmokeIdentity(scratch, 'run', () => {
+      renameSync(art, held);
+      renameSync(join(held, 'identity.json'), join(held, 'original.json'));
+      symlinkSync(targetFile, join(held, 'identity.json'));
+      symlinkSync(target, art);
+    });
+    assert.equal(statSync(held).mode & 0o777, 0o711);
+    assert.equal(statSync(join(held, 'original.json')).mode & 0o777, 0o644);
+    assert.equal(statSync(target).mode & 0o777, 0o700);
+    assert.equal(statSync(targetFile).mode & 0o777, 0o600);
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});
+
+test('hard-linked identity cannot expose private evidence or open the run directory', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'smoke-hardlink-'));
+  try {
+    const parent = join(scratch, '.ci-artifacts'); mkdirSync(parent, { mode: 0o700 });
+    const art = join(parent, 'run'); mkdirSync(art, { mode: 0o700 });
+    const log = join(art, 'qualification.log'); writeFileSync(log, 'private', { mode: 0o600 });
+    const identity = join(art, 'identity.json'); linkSync(log, identity);
+    assert.equal(statSync(identity).nlink, 2);
+    assert.throws(() => exposeSmokeIdentity(scratch, 'run'), /hard links/);
+    assert.equal(statSync(log).mode & 0o777, 0o600);
+    assert.equal(statSync(identity).mode & 0o777, 0o600);
+    assert.equal(statSync(art).mode & 0o777, 0o700);
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});
+
+test('non-root container reads only the exposed identity on a read-only evidence mount',
+  { skip: process.env.CI_SMOKE_DOCKER !== '1' }, () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'smoke-container-'));
+    try {
+      const parent = join(scratch, '.ci-artifacts'); mkdirSync(parent, { mode: 0o700 });
+      const art = join(parent, 'run'); mkdirSync(art, { mode: 0o700 });
+      writeFileSync(join(art, 'identity.json'), '{"run":"fixture"}', { mode: 0o600 });
+      writeFileSync(join(art, 'qualification.log'), 'private', { mode: 0o600 });
+      const probe = () => spawnSync('docker', ['run', '--rm', '--user', '10001:10001',
+        '--mount', `type=bind,src=${art},dst=/evidence,readonly`, '--entrypoint', 'node',
+        'node:26.9.0-alpine', '-e', 'const fs=require("node:fs");if(process.getuid()===0)process.exit(2);fs.readFileSync("/evidence/identity.json");fs.readFileSync("/evidence/qualification.log");'],
+      { encoding: 'utf8', timeout: 30000 });
+      const before = probe();
+      assert.notEqual(before.status, 0, 'private identity must not be readable');
+      assert.match(before.stderr, /EACCES.*identity\.json/s);
+      const exposed = spawnSync(process.execPath, ['ci/expose-smoke-identity.mjs', scratch, 'run'], { encoding: 'utf8' });
+      assert.equal(exposed.status, 0, exposed.stderr);
+      const after = probe();
+      assert.notEqual(after.status, 0, 'private log must remain unreadable');
+      assert.match(after.stderr, /EACCES.*qualification\.log/s);
+      const identity = spawnSync('docker', ['run', '--rm', '--user', '10001:10001',
+        '--mount', `type=bind,src=${art},dst=/evidence,readonly`, '--entrypoint', 'node',
+        'node:26.9.0-alpine', '-e', 'const fs=require("node:fs");if(process.getuid()===0)process.exit(2);if(JSON.parse(fs.readFileSync("/evidence/identity.json","utf8")).run!=="fixture")process.exit(3);'],
+      { encoding: 'utf8', timeout: 30000 });
+      assert.equal(identity.status, 0, identity.stderr);
+    } finally { rmSync(scratch, { recursive: true, force: true }); }
+  });
 
 test('consumer failure prints child diagnostics and removes only its own portable scratch', () => {
   const scratch = mkdtempSync(join(tmpdir(), 'consumer-portability-'));

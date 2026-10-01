@@ -28,6 +28,18 @@ own `.ci-artifacts/<RUN_ID>/` after collecting evidence. Release preflight and
 publication do not inherit the qualification-stage override; publication keeps
 its separate temporary, explicit `--config` credential flow.
 
+The Jenkins `umask 077` keeps the run directory and evidence private during
+qualification. After the runner writes `identity.json`, a Linux Node helper
+opens the checkout, artifacts parent and run directories without following
+symlinks, then opens the identity relative to the pinned run-directory handle.
+It checks ownership and file types on those handles and grants only read access
+(0644) on the identity and traverse access (0711) on the run directory using
+the same handles. A path replacement between validation and permission change
+cannot redirect these changes. This lets the non-root production image read
+the read-only `/evidence` mount for smoke verification.
+The parent `.ci-artifacts`, Docker config directory, logs and other evidence
+are not relaxed; the run directory is not listable by other users.
+
 ## Toolchain and gates
 
 `.nvmrc` pins Node **26.9.0**, and the root manifest pins npm **11.12.1**. The

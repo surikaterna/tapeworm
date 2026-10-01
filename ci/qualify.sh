@@ -162,6 +162,7 @@ gates() {
 build_image() {
     printf '\nGATE production build (no cache, generated host outputs present)\n'
     runner node ci/policy.mjs identity "$ART"
+    runner node ci/expose-smoke-identity.mjs "$ROOT" "$RUN_ID"
     local marker="$ROOT/packages/tapeworm_dispatcher_mdb_rmq/dist/ci-host-sentinel"
     [[ ! -e $marker && ! -L $marker ]]
     SENTINEL=$marker
