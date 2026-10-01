@@ -8,10 +8,12 @@ import { spawnSync } from 'node:child_process';
 
 const scripts = ['ci/qualify.sh', 'ci/services.sh', 'ci/release.sh', 'ci/cleanup.test.sh'];
 
+/** @param {string} path @param {string} body */
 function executable(path, body) {
   writeFileSync(path, `#!/usr/bin/env bash\nset -euo pipefail\n${body}\n`, { mode: 0o755 });
 }
 
+/** @param {NodeJS.ProcessEnv} env @param {string} runId */
 function cleanupWith(env, runId) {
   const result = spawnSync('bash', ['ci/qualify.sh', 'cleanup'], {
     env: { ...env, RUN_ID: runId }, encoding: 'utf8', timeout: 10000,
@@ -27,6 +29,7 @@ test('local default resolves docker from PATH and routes every cleanup query thr
     const log = join(scratch, 'calls');
     mkdirSync(bin);
     executable(join(bin, 'docker'), 'printf "%s\\n" "$*" >> "$DOCKER_LOG"');
+    /** @type {NodeJS.ProcessEnv} */
     const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, DOCKER_LOG: log };
     delete env.DOCKER_BIN;
     const result = cleanupWith(env, 'docker-default-test');

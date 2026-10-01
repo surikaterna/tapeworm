@@ -6,14 +6,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+/** @param {string} path @param {string} body */
 function executable(path, body) {
   writeFileSync(path, `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
 }
 
+/** @param {string} script @param {string[]} args @param {NodeJS.ProcessEnv} env */
 function run(script, args, env) {
   return spawnSync('bash', [script, ...args], { env, encoding: 'utf8', timeout: 10000 });
 }
 
+/** @param {string} path */
 function fakeDocker(path) {
   executable(path, `
 printf '%s\\n' "$*" >> "$DOCKER_LOG"
@@ -33,6 +36,7 @@ test('diagnostics resolve the default once, allowlist output, and never mutate D
   try {
     const bin = join(scratch, 'bin'); const log = join(scratch, 'calls');
     mkdirSync(bin); fakeDocker(join(bin, 'docker'));
+    /** @type {NodeJS.ProcessEnv} */
     const env = {
       ...process.env, PATH: `${bin}:${bin}:/usr/bin:/bin`, DOCKER_LOG: log,
       NODE_NAME: 'lynx-agent', NODE_LABELS: 'linux lynx', WORKSPACE: '/safe/work space',
@@ -45,7 +49,10 @@ test('diagnostics resolve the default once, allowlist output, and never mutate D
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /DIAGNOSTIC docker_requested=docker/);
     assert.match(result.stdout, /DIAGNOSTIC linux_docker_capability=PASS exit_status=0/);
-    const candidates = [...result.stdout.matchAll(/docker_path_candidate=(.*)/g)].map((match) => match[1]);
+    const candidates = [...result.stdout.matchAll(/docker_path_candidate=(.*)/g)].map((match) => {
+      assert.ok(match[1] !== undefined);
+      return match[1];
+    });
     assert.equal(new Set(candidates).size, candidates.length);
     assert.equal(candidates.filter((candidate) => candidate.includes(scratch)).length, 1);
     assert.ok(result.stdout.includes('docker_context_name=\\[redacted-unexpected-output\\]'));
