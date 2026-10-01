@@ -15,6 +15,19 @@ Docker CLI selection is explicit and script-controlled. Scripts default
 spaces are supported). Every entry point validates the selection before use and
 fails with a corrective message when it is unavailable.
 
+Jenkins qualification alone exports `DOCKER_CONFIG` to a newly created, private,
+empty `.ci-artifacts/<RUN_ID>/docker-anonymous` directory. Creation fails if the
+run directory already exists, rather than reusing stale config or removing another
+run's files. No Docker credentials are copied from the agent's home; base-image
+pulls (including `--pull` builds) are anonymous and subject to Docker Hub's
+anonymous pull rate limit. If throttled, wait for the limit to reset or arrange
+adequate anonymous capacity; do not bind registry credentials to qualification.
+This directory is ignored by Git and excluded from Docker build contexts. Jenkins
+deletes it with the workspace after archiving logs; local runs may remove their
+own `.ci-artifacts/<RUN_ID>/` after collecting evidence. Release preflight and
+publication do not inherit the qualification-stage override; publication keeps
+its separate temporary, explicit `--config` credential flow.
+
 ## Toolchain and gates
 
 `.nvmrc` pins Node **26.9.0**, and the root manifest pins npm **11.12.1**. The
