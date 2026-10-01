@@ -1,14 +1,98 @@
-# Reproducible qualification (redemeine-cwvo)
+# GitHub Actions CI
 
-From a trusted checkout, run **`./ci/qualify.sh`**. Jenkins runs this exact command;
-there is no separate CI-only sequence. No publication or credentials are needed.
+`.github/workflows/pr.yml` runs `npm ci`, build, check, and tests on pull requests
+targeting **develop**. Only `opened`, `synchronize`, and `reopened` events trigger
+validation; editing a PR description does not. New commits cancel an older run
+for the same PR. Select **Build, check, and test** as a required branch-protection
+check if merges should require successful validation.
+
+`.github/workflows/publish.yml` runs on pushes to **develop**, repeats those
+checks, then versions or publishes packages using `changesets/action@v2` and
+builds/publishes the RMQ Dispatcher image.
+Both workflows use Ubuntu runners, Node v26 from `.nvmrc`, and Node's bundled
+npm. Publishing runs are serialized without cancelling an
+active release; GitHub may replace an older pending run with a newer push.
+
+- Add changesets with `npm run changeset` alongside package changes. When they
+  reach `develop`, the action runs `npm run changeset:version` to create or update
+  a **Version Packages** PR targeting `develop`, containing version bumps,
+  changelogs, and consumed changeset removals.
+- Merge the version PR to publish. With no pending changesets, the action runs
+  `npm run changeset:publish`, pushes Git tags, and creates GitHub releases.
+  Already-published npm versions are skipped, including on a retry.
+- Docker publishes `surikaterna/tapeworm-dispatcher` with `develop-<run_number>`
+  and `latest` tags on each successful run, including pushes that update the
+  version PR. The dispatcher-version tag (for example, `1.0.0`) is only published
+  if it does not already exist in Docker Hub; existing version tags are preserved,
+  including on retries. A new package version gets a new tag on its first run.
+  Registry lookup errors fail the job rather than risk overwriting a version tag.
+  Its separate job checks out the original pushed commit, not the action's
+  version-PR branch. The repository root is the Docker build context.
+
+Enable **Allow GitHub Actions to create and approve pull requests** in repository
+**Settings → Actions → General → Workflow permissions**. The action uses the
+automatic `GITHUB_TOKEN` with `contents: write` and `pull-requests: write`.
+PRs created or updated using this token do not trigger the PR validation workflow;
+if that check is required, reopen the PR manually to trigger validation.
+
+Configure these repository Actions secrets:
+
+- `NPM_TOKEN`: npm token with publish access to the public workspace packages.
+- `DOCKERHUB_CREDS_USER`: Docker Hub account with write access to the image repository.
+- `DOCKERHUB_CREDS_PSW`: that account's Docker Hub access token.
+
+Publication credentials are scoped to their steps. npm and Docker publication
+are not atomic; a retry skips npm versions already published.
+
+## Publish the Docker image locally
+
+From a clean **develop** checkout, log in to Docker Hub with an account that can
+push to `surikaterna/tapeworm-dispatcher`, then run:
+
+```bash
+docker login
+bash ci/publish-docker.sh
+```
+
+The script requires Linux and the Docker/Git tooling listed below; host Node/npm
+is not needed. It rejects other branches, detached HEADs, staged/unstaged changes,
+and untracked files. Ignored dependencies, build output, and qualification logs
+are allowed. Local commits on `develop` are allowed; the script does not fetch or
+require equality with `origin/develop`.
+
+Before publishing, it automatically runs **qualification**: build, lint/typecheck,
+unit tests, packed-package consumer checks, isolated MongoDB/RabbitMQ integration
+tests, and smoke tests against the production Docker image (including shutdown).
+Qualification cleans generated outputs and reinstalls workspace dependencies.
+It removes its own service containers, network, and volumes on exit and retains
+logs under `.ci-artifacts/<run-id>/`.
+
+Only the exact image ID that passed qualification is pushed; there is no second
+build. The checkout must still be clean, on `develop`, and at the same commit
+before publication. The only Docker Hub tags pushed are:
+
+- The dispatcher package version, **only if the tag is absent**. Existing version
+  tags are left untouched. Registry/authentication errors abort publication.
+- `latest`, always, after any new version tag was pushed successfully.
+
+The version comes from the tested image's label, which qualification verifies
+against `packages/tapeworm_dispatcher_mdb_rmq/package.json` inside that image.
+The script uses the existing Docker login and publishes neither npm packages nor
+Git tags. `ci/docker-tags.sh` shares the version-existence check with GitHub Actions.
+Avoid concurrent publishers for the same new version: lookup and push are separate
+registry operations; Docker Hub version-tag immutability can enforce this server-side.
+
+## Reproducible qualification (redemeine-cwvo)
+
+From a trusted checkout, run **`./ci/qualify.sh`** for the extended service
+integration, packed-consumer, and image-smoke suite without publishing. The local
+Docker publisher runs it automatically; GitHub Actions does not. Qualification
+itself requires no publication credentials.
 The host needs Linux, Bash, Git, GNU coreutils, and Docker CLI plus access to a
 Linux Docker daemon. Registry/npm/Mongo binary download access and enough disk
 for clean builds are required. Docker access is effectively host-root access:
 use dedicated trusted agents, not agents that hold production credentials while
-running untrusted PR code. Jenkins requires the hardcoded `lynx` agent label;
-operators must configure that capability. This repository
-does not provision a Jenkins controller or agent.
+running untrusted PR code.
 
 Docker CLI selection is explicit and script-controlled. Scripts default
 `DOCKER_BIN` to `docker`; set it to an executable command or absolute path (paths containing
@@ -30,9 +114,8 @@ verified service connectivity, and the **unfiltered** real integration suite.
 The host then performs a no-cache production build and real image smoke. No
 failed return is ignored and no tests are filtered or retried to obtain green.
 Existing root test skips/warnings remain visible. CI shell syntax is checked;
-`ci/pipeline.test.mjs` verifies static Jenkins/gate policy, not the Jenkins DSL
-runtime. Controller-side Declarative validation and a live job still require
-the operator/Auditor; local execution must not be reported as live Jenkins proof.
+`ci/pipeline.test.mjs` verifies static GitHub Actions and standalone gate policy.
+Local execution does not replace a live GitHub Actions run.
 
 Each run owns a unique private network, Mongo **8.3.9** `rs0`, separate expiry
 Mongo **8.3.9** `rs0` (1 MiB oplog, `syncdelay=1`), and Rabbit **4.3.6**. No host
@@ -46,7 +129,7 @@ workspace is mounted at its quoted original absolute path, including spaces.
 Linked worktrees mount only required Git common/admin directories read-only at
 their original paths; `GIT_OPTIONAL_LOCKS=0` avoids index refresh writes. No Docker
 socket, host home, credentials directory, or arbitrary parent directory is
-mounted in Node. A normal Jenkins checkout needs only its workspace `.git`.
+mounted in Node. A normal checkout needs only its workspace `.git`.
 The packed consumer uses OS `tmpdir()` plus a unique directory and removes that
 directory in `finally`, printing child diagnostics on failure.
 
@@ -105,14 +188,13 @@ runtime CLI flags, quarantine adapter, or distribution/claim semantics.
 
 ## Cleanup, diagnostics and recovery
 
-`RUN_ID` defaults to a random UUID; Jenkins supplies one and reuses it in `post`.
-Do not reuse a live run's ID. EXIT/INT/TERM cleanup and Jenkins `always` remove
+`RUN_ID` defaults to a random UUID; supply it explicitly to reuse it for recovery.
+Do not reuse a live run's ID. EXIT/INT/TERM cleanup removes
 only resources with **both** `org.tapeworm.ci.project=qualification` and
 `org.tapeworm.ci.run=<RUN_ID>`. Named data volumes carry the same labels. Failure
 diagnostics retain the last 200 service log lines and state (not full environment
 inspection); qualification logs retain the last 2 MiB. Local evidence lives in
-`.ci-artifacts/<RUN_ID>/`. Jenkins archives logs/identity then deletes its
-workspace. Local built images and build cache remain for independent audit;
+`.ci-artifacts/<RUN_ID>/`. Local built images and build cache remain for independent audit;
 there is no global prune. Remove only known run image tags after audit.
 
 Before qualification and during explicit cleanup, `ci/diagnostics.sh` emits a
@@ -133,7 +215,11 @@ service-start failure and SIGTERM, including preservation of unrelated owned
 sentinel resources. Its failure injection overrides `DOCKER_BIN` directly rather
 than shadowing `docker` through PATH. It creates no publication credentials.
 
-## Git Flow qualification and master-only publication
+## Standalone release workflow (not used by GitHub Actions)
+
+The remaining instructions describe `ci/qualify.sh release-preflight` and
+`ci/qualify.sh publish`, which retain the original receipt-based release process
+and its separate credentials/image naming. GitHub Actions uses the simpler flow above.
 
 Changes integrate and qualify on **`develop`**. A **`release/*`** branch prepares
 and qualifies reviewed versions before those changes merge to **`master`**.
@@ -142,7 +228,7 @@ they run the same credential-free qualification used by other branch contexts.
 Prepare versions in a **reviewed release commit outside CI**. Master publication
 rejects pending changeset `.md` files and any tracked/untracked source dirt
 (ignored build outputs are allowed). There is **no** `changeset:version`, Git
-commit, or Git push in Jenkins. The credential-free preflight checks clean master,
+commit, or Git push in this workflow. The credential-free preflight checks clean master,
 already-committed versions, revision, qualified image receipt, and hashes of the
 same built npm outputs; publication does not rebuild anything.
 
@@ -154,9 +240,8 @@ configuration is outside the build context and removed on exit; npm auth uses
 literal environment substitution and shell tracing is off. The tested image gets
 revision/run and package-version tags first; **`:latest` is master-only and last**.
 Git tags do not bypass the branch gate: tag builds, including a tag named
-`master`, qualify but cannot preflight or publish. Jenkins excludes tag builds
-from both release stages, and the credential-free policy independently rejects
-tag metadata. Master is the sole publication branch.
+`master`, qualify but cannot preflight or publish. The credential-free policy
+rejects tag metadata. Master is the sole publication branch.
 Npm and image publication are not atomic. On partial failure inspect what was
 published and recover manually against the same reviewed versions—never
 automatically rerun versioning. Local qualification/tests never login or publish.

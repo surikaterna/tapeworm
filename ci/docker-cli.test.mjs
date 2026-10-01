@@ -6,12 +6,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const scripts = ['ci/qualify.sh', 'ci/services.sh', 'ci/release.sh', 'ci/cleanup.test.sh'];
+const scripts = ['ci/qualify.sh', 'ci/services.sh', 'ci/release.sh', 'ci/cleanup.test.sh', 'ci/publish-docker.sh'];
 
+/** @param {string} path @param {string} body */
 function executable(path, body) {
   writeFileSync(path, `#!/usr/bin/env bash\nset -euo pipefail\n${body}\n`, { mode: 0o755 });
 }
 
+/** @param {NodeJS.ProcessEnv} env @param {string} runId */
 function cleanupWith(env, runId) {
   const result = spawnSync('bash', ['ci/qualify.sh', 'cleanup'], {
     env: { ...env, RUN_ID: runId }, encoding: 'utf8', timeout: 10000,
@@ -27,6 +29,7 @@ test('local default resolves docker from PATH and routes every cleanup query thr
     const log = join(scratch, 'calls');
     mkdirSync(bin);
     executable(join(bin, 'docker'), 'printf "%s\\n" "$*" >> "$DOCKER_LOG"');
+    /** @type {NodeJS.ProcessEnv} */
     const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, DOCKER_LOG: log };
     delete env.DOCKER_BIN;
     const result = cleanupWith(env, 'docker-default-test');
@@ -80,11 +83,7 @@ test('all host entry points validate selection and contain no bare Docker execut
 
   const qualify = readFileSync('ci/qualify.sh', 'utf8');
   const cleanup = readFileSync('ci/cleanup.test.sh', 'utf8');
-  const jenkins = readFileSync('Jenkinsfile', 'utf8');
   assert.match(qualify, /export DOCKER_BIN[\s\S]*ci\/release\.sh[\s\S]*ci\/services\.sh/);
   assert.match(cleanup, /DOCKER_BIN="\$SCRATCH\/docker" RUN_ID="\$FAIL" \.\/ci\/qualify\.sh/);
   assert.doesNotMatch(cleanup, /PATH="\$SCRATCH:/);
-  assert.doesNotMatch(jenkins, /DOCKER_BIN|DOCKER_AGENT_LABEL/);
-  assert.ok(jenkins.includes("agent { label 'lynx' }"));
-  assert.ok(jenkins.includes("sh './ci/qualify.sh cleanup'"));
 });

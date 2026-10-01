@@ -79,7 +79,8 @@ LOG_PID=$!
 preflight() {
     [[ $(uname -s) == Linux ]]
     command -v -- "$DOCKER_BIN"; command -v git; command -v timeout
-    bash -n ci/qualify.sh ci/diagnostics.sh ci/services.sh ci/release.sh ci/cleanup.test.sh
+    local script
+    for script in ci/*.sh; do bash -n "$script"; done
     require_linux_docker
     [[ $(< .nvmrc) == 26.9.0 ]]
     [[ -w $ROOT ]]

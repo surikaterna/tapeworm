@@ -1,0 +1,84 @@
+name: Publish
+
+on:
+  push:
+    branches: [develop]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: publish-develop
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Version or publish packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check
+      - run: npm test
+      - name: Version or publish packages
+        uses: changesets/action@v2
+        with:
+          version-script: npm run changeset:version
+          publish-script: npm run changeset:publish
+          pr-base-branch: develop
+          push-git-tags: true
+          create-github-releases: true
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  docker:
+    name: Publish RMQ Dispatcher
+    needs: publish
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Read package versions
+        id: versions
+        run: |
+          echo "dispatcher=$(node -p 'require("./packages/tapeworm_dispatcher_mdb_rmq/package.json").version')" >> "$GITHUB_OUTPUT"
+          echo "core=$(node -p 'require("./packages/tapeworm/package.json").version')" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v4
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_CREDS_USER }}
+          password: ${{ secrets.DOCKERHUB_CREDS_PSW }}
+      - name: Select image tags
+        id: image-tags
+        run: bash ci/docker-tags.sh >> "$GITHUB_OUTPUT"
+        env:
+          IMAGE: surikaterna/tapeworm-dispatcher
+          VERSION: ${{ steps.versions.outputs.dispatcher }}
+          RUN_NUMBER: ${{ github.run_number }}
+      - name: Build and publish RMQ Dispatcher
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: packages/tapeworm_dispatcher_mdb_rmq/Dockerfile
+          pull: true
+          push: true
+          build-args: |
+            REVISION=${{ github.sha }}
+            VERSION=${{ steps.versions.outputs.dispatcher }}
+            CORE_VERSION=${{ steps.versions.outputs.core }}
+          tags: ${{ steps.image-tags.outputs.tags }}

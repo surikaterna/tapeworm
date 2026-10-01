@@ -571,11 +571,14 @@ dispatcher configuration tests remain at the test root to mirror the source.
 
 ## Qualification commands
 
-The shared local/Jenkins gate is **`./ci/qualify.sh`** from the repository root.
-See [the operator contract](../../ci/README.md) for the Docker-capable Linux agent,
-Node 26.9.0/npm 11.12.1, pinned private services, image smoke, cleanup and master-only
-publication policy. No host Node installation or manually published service ports
-are needed for this command. Production container stop grace must be **30 seconds**
+Run **`./ci/qualify.sh`** from the repository root for the full local validation
+suite. To publish to Docker Hub from a clean `develop` checkout, run `docker login`
+and **`bash ci/publish-docker.sh`**; it qualifies the image first, then pushes
+`surikaterna/tapeworm-dispatcher:latest` and the package-version tag only if absent.
+See [the CI guide](../../ci/README.md) for the Docker-capable Linux host,
+Node 26.9.0/npm 11.12.1 containers, isolated services, image smoke, and cleanup.
+No host Node installation or manually published service ports are needed for
+these commands. Production container stop grace must be **30 seconds**
 to leave margin beyond the unchanged ten-second CLI deadline.
 
 For individual developer checks, use Node 26.9.0 and npm 11.12.1:
