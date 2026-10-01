@@ -1,5 +1,11 @@
 # tapeworm_dispatcher_mdb_rmq
 
+## 1.1.0
+
+### Minor Changes
+
+- f91164c: Add an optional `aggregateType` RabbitMQ header from the first event type's prefix for headers-exchange routing, without changing commit bodies or publication guarantees.
+
 ## 1.0.0
 
 ### Major Changes
