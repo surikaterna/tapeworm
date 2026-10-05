@@ -142,7 +142,7 @@ class HybridPartition implements Partition {
     if (callback) {
       snapshotPromise.then(
         (snapshot) => callback(null, snapshot),
-        (error) => callback(error)
+        (error) => callback(error instanceof Error ? error : new Error(String(error)))
       );
     }
 
