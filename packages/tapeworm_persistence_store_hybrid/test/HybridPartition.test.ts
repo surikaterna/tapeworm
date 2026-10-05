@@ -162,11 +162,9 @@ describe('Partition', () => {
 
       const partition: Partition = await eventStore.openPartition('master');
       await mockRemotePartition.storeSnapshot(snapshotId, { version: 1, id: '1' }, 1);
-      const callback = vi.fn();
-      const snapshot: Record<string, any> = await partition.loadSnapshot(snapshotId, callback);
+      const snapshot: Record<string, any> = await partition.loadSnapshot(snapshotId);
       expect(loadSnapshotMock.mock.calls.length).toBe(1);
       expect(snapshot.version).toBe(1);
-      expect(callback).toHaveBeenCalledExactlyOnceWith(null, snapshot);
     });
 
     it('Should automatically store snapshot from remote to local', async () => {
@@ -195,11 +193,9 @@ describe('Partition', () => {
 
       const partition: Partition = await eventStore.openPartition('master');
       await mockLocalPartition.storeSnapshot(snapshotId, { version: 1, id: '1' }, 1);
-      const callback = vi.fn();
-      const snapshot: Record<string, any> | undefined = await partition.loadSnapshot(snapshotId, callback);
+      const snapshot: Record<string, any> | undefined = await partition.loadSnapshot(snapshotId);
       expect(loadSnapshotMock.mock.calls.length).toBe(0);
       expect(snapshot?.version).toBe(1);
-      expect(callback).toHaveBeenCalledExactlyOnceWith(null, snapshot);
     });
 
     it('Should use remote partition if local snapshot has passed its TTL', async () => {
