@@ -35,9 +35,12 @@ class HybridPartition implements Partition {
       }
 
       log.info('Starting auto clean of local partition');
-      setInterval(() => {
-        this.cleanPartition();
-      }, 1000 * 60 * 30); //Clean every 30 minutes
+      setInterval(
+        () => {
+          this.cleanPartition();
+        },
+        1000 * 60 * 30
+      ); //Clean every 30 minutes
     }
   }
 
