@@ -30,6 +30,8 @@ beforeEach(async () => {
   hybridPersistence = new HybridPersistence(mockedLocalPersistence, mockedRemotePersistence, false, 5, { loggingEnabled: false });
 });
 
+afterEach(() => vi.restoreAllMocks());
+
 describe('Partition', () => {
   describe('#append', () => {
     it('Should return commit if added', async () => {
@@ -74,6 +76,83 @@ describe('Partition', () => {
   });
 
   describe('#loadSnapshot', () => {
+    it.each([null, undefined])('Should preserve missing snapshot %s and invoke the callback once', async (missingSnapshot) => {
+      vi.spyOn(mockLocalPartition, 'loadSnapshot').mockImplementation(() => Promise.resolve(undefined));
+      vi.spyOn(mockRemotePartition, 'loadSnapshot').mockImplementation(() => Promise.resolve(missingSnapshot));
+      const storeSnapshot = vi.spyOn(mockLocalPartition, 'storeSnapshot');
+      const truncateStream = vi.spyOn(mockLocalPartition, 'truncateStreamFrom');
+      const partition = await hybridPersistence.openPartition('master');
+      const callback = vi.fn();
+
+      await expect(partition.loadSnapshot('new-stream', callback)).resolves.toBe(missingSnapshot);
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback.mock.calls[0]?.[0]).toBeNull();
+      expect(callback.mock.calls[0]?.[1]).toBe(missingSnapshot);
+      expect(storeSnapshot).not.toHaveBeenCalled();
+      expect(truncateStream).not.toHaveBeenCalled();
+    });
+
+    describe.each(['local', 'remote'])('%s snapshot failures', (source) => {
+      it.each([false, true])('Should reject and invoke the error callback once (synchronous: %s)', async (synchronous) => {
+        const error = new Error(`${source} snapshot failed`);
+        const target = source === 'local' ? mockLocalPartition : mockRemotePartition;
+        vi.spyOn(target, 'loadSnapshot').mockImplementation(() => {
+          if (synchronous) {
+            throw error;
+          }
+          return Promise.reject(error);
+        });
+        const partition = await hybridPersistence.openPartition('master');
+        const callback = vi.fn();
+
+        await expect(partition.loadSnapshot('new-stream', callback)).rejects.toBe(error);
+
+        expect(callback).toHaveBeenCalledExactlyOnceWith(error);
+      });
+
+      it('Should reject when no callback is supplied', async () => {
+        const error = new Error(`${source} snapshot failed`);
+        const target = source === 'local' ? mockLocalPartition : mockRemotePartition;
+        vi.spyOn(target, 'loadSnapshot').mockImplementation(() => Promise.reject(error));
+        const partition = await hybridPersistence.openPartition('master');
+
+        await expect(partition.loadSnapshot('new-stream')).rejects.toBe(error);
+      });
+
+      it('Should propagate the snapshot error through the event-store fallback', async () => {
+        const error = new Error(`${source} snapshot failed`);
+        const target = source === 'local' ? mockLocalPartition : mockRemotePartition;
+        vi.spyOn(target, 'loadSnapshot').mockImplementation(() => Promise.reject(error));
+        const eventStore = new EventStore(hybridPersistence);
+        const partition = await eventStore.openPartition('master');
+
+        await expect(partition.queryStreamWithSnapshot?.('new-stream')).rejects.toBe(error);
+      });
+    });
+
+    it('Should invoke the callback when neither partition contains a snapshot', async () => {
+      const partition = await hybridPersistence.openPartition('master');
+      const callback = vi.fn();
+
+      const snapshot = await partition.loadSnapshot('new-stream', callback);
+
+      expect(snapshot).toBeFalsy();
+      expect(callback).toHaveBeenCalledExactlyOnceWith(null, snapshot);
+    });
+
+    it('Should complete the event-store fallback for a new stream without a snapshot', async () => {
+      const eventStore = new EventStore(hybridPersistence);
+      const partition = await eventStore.openPartition('master');
+      const queryStream = vi.spyOn(mockRemotePartition, 'queryStream');
+      const snapshot = await mockRemotePartition.loadSnapshot('new-stream');
+
+      const result = await partition.queryStreamWithSnapshot?.('new-stream');
+
+      expect(result).toEqual({ snapshot, commits: [] });
+      expect(queryStream.mock.calls[0]?.slice(0, 2)).toEqual(['new-stream', -1]);
+    });
+
     it('Should fallback to remote partition if local does not contain snapshot', async () => {
       const eventStore = new EventStore(hybridPersistence);
       const snapshotId = 'abc';
@@ -83,9 +162,11 @@ describe('Partition', () => {
 
       const partition: Partition = await eventStore.openPartition('master');
       await mockRemotePartition.storeSnapshot(snapshotId, { version: 1, id: '1' }, 1);
-      const snapshot: Record<string, any> = await partition.loadSnapshot(snapshotId);
+      const callback = vi.fn();
+      const snapshot: Record<string, any> = await partition.loadSnapshot(snapshotId, callback);
       expect(loadSnapshotMock.mock.calls.length).toBe(1);
       expect(snapshot.version).toBe(1);
+      expect(callback).toHaveBeenCalledExactlyOnceWith(null, snapshot);
     });
 
     it('Should automatically store snapshot from remote to local', async () => {
@@ -114,9 +195,11 @@ describe('Partition', () => {
 
       const partition: Partition = await eventStore.openPartition('master');
       await mockLocalPartition.storeSnapshot(snapshotId, { version: 1, id: '1' }, 1);
-      const snapshot: Record<string, any> | undefined = await partition.loadSnapshot(snapshotId);
+      const callback = vi.fn();
+      const snapshot: Record<string, any> | undefined = await partition.loadSnapshot(snapshotId, callback);
       expect(loadSnapshotMock.mock.calls.length).toBe(0);
       expect(snapshot?.version).toBe(1);
+      expect(callback).toHaveBeenCalledExactlyOnceWith(null, snapshot);
     });
 
     it('Should use remote partition if local snapshot has passed its TTL', async () => {
