@@ -2,7 +2,7 @@ import BluebirdPromise from 'bluebird';
 import HybridPartition from './HybridPartition';
 import type { ICommit, ISnapshot } from 'tapeworm';
 
-export type SnapshotResult = ISnapshot | null | undefined;
+export type SnapshotResult = ISnapshot | undefined;
 export type loadSnapshotCallback = (err: Error | null, snapshot?: SnapshotResult) => void;
 
 export type truncateStreamFromCallback = (error: Error | null, result: Record<string, any>) => void;

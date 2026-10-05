@@ -91,7 +91,7 @@ class HybridPartition implements Partition {
     const loadPartitionSnapshot = (partition: Partition) =>
       new Promise<SnapshotResult>((resolve, reject) => {
         try {
-          partition.loadSnapshot(streamId).then(resolve, reject);
+          partition.loadSnapshot(streamId).then((snapshot) => resolve(snapshot ?? undefined), reject);
         } catch (error) {
           reject(error);
         }

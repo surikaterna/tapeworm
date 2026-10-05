@@ -76,7 +76,7 @@ describe('Partition', () => {
   });
 
   describe('#loadSnapshot', () => {
-    it.each([null, undefined])('Should preserve missing snapshot %s and invoke the callback once', async (missingSnapshot) => {
+    it.each([null, undefined])('Should normalize missing snapshot %s to undefined and invoke the callback once', async (missingSnapshot) => {
       vi.spyOn(mockLocalPartition, 'loadSnapshot').mockImplementation(() => Promise.resolve(undefined));
       vi.spyOn(mockRemotePartition, 'loadSnapshot').mockImplementation(() => Promise.resolve(missingSnapshot));
       const storeSnapshot = vi.spyOn(mockLocalPartition, 'storeSnapshot');
@@ -84,11 +84,11 @@ describe('Partition', () => {
       const partition = await hybridPersistence.openPartition('master');
       const callback = vi.fn();
 
-      await expect(partition.loadSnapshot('new-stream', callback)).resolves.toBe(missingSnapshot);
+      await expect(partition.loadSnapshot('new-stream', callback)).resolves.toBeUndefined();
 
       expect(callback).toHaveBeenCalledTimes(1);
       expect(callback.mock.calls[0]?.[0]).toBeNull();
-      expect(callback.mock.calls[0]?.[1]).toBe(missingSnapshot);
+      expect(callback.mock.calls[0]?.[1]).toBeUndefined();
       expect(storeSnapshot).not.toHaveBeenCalled();
       expect(truncateStream).not.toHaveBeenCalled();
     });
@@ -149,7 +149,7 @@ describe('Partition', () => {
 
       const result = await partition.queryStreamWithSnapshot?.('new-stream');
 
-      expect(result).toEqual({ snapshot, commits: [] });
+      expect(result).toEqual({ snapshot: undefined, commits: [] });
       expect(queryStream.mock.calls[0]?.slice(0, 2)).toEqual(['new-stream', -1]);
     });
 
