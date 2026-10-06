@@ -108,12 +108,12 @@ class HybridPartition implements Partition {
           }
 
           return loadPartitionSnapshot(this.remotePartition)
-            .then((remoteSnapshot) => {
+            .then(async (remoteSnapshot) => {
               log.info('loadSnapshot: Using remote snapshot');
 
               if (remoteSnapshot) {
-                this.localPartition.storeSnapshot(remoteSnapshot.id, remoteSnapshot.snapshot, remoteSnapshot.version);
-                this.localPartition.truncateStreamFrom(remoteSnapshot.id, 0, true);
+                await this.localPartition.storeSnapshot(remoteSnapshot.id, remoteSnapshot.snapshot, remoteSnapshot.version);
+                await this.localPartition.truncateStreamFrom(remoteSnapshot.id, 0, true);
               }
               return remoteSnapshot;
             })
