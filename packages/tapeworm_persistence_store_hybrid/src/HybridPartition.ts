@@ -1,7 +1,7 @@
 import BluebirdPromise from 'bluebird';
-import type { ICommit, ISnapshot } from 'tapeworm';
-import { LoggingOptions, Partition, queryStreamCallback, truncateStreamFromCallback } from './HybridPersistence';
 import { LoggerFactory } from 'slf';
+import type { ICommit, ISnapshot } from 'tapeworm';
+import type { loadSnapshotCallback, LoggingOptions, Partition, queryStreamCallback, SnapshotResult, truncateStreamFromCallback } from './HybridPersistence';
 
 const log = LoggerFactory.getLogger('tapeworm-persistence-hybrid:hybrid-partition');
 
@@ -68,7 +68,7 @@ class HybridPartition implements Partition {
     return this.localPartition.storeSnapshot(streamId, snapshot, version);
   }
 
-  private checkIsSnapshotToOld(snapshot?: ISnapshot) {
+  private checkIsSnapshotToOld(snapshot?: ISnapshot | null) {
     if (!snapshot) {
       return true;
     }
@@ -86,40 +86,67 @@ class HybridPartition implements Partition {
     return false;
   }
 
-  loadSnapshot(streamId: string, callback?: (err: Error | null, snapshot: ISnapshot) => void) {
+  loadSnapshot(streamId: string, callback?: loadSnapshotCallback): BluebirdPromise<SnapshotResult> {
     const startTime = Date.now();
-    return new BluebirdPromise<ISnapshot>((resolve) => {
-      this.localPartition.loadSnapshot(streamId).then((localSnapshot) => {
-        const isSnapshotToOld = this.checkIsSnapshotToOld(localSnapshot);
-        if (localSnapshot && !isSnapshotToOld) {
-          log.info('loadSnapshot: Using local snapshot');
-          callback?.(null, localSnapshot);
-          resolve(localSnapshot);
-          return;
+    const loadPartitionSnapshot = (partition: Partition) =>
+      new Promise<SnapshotResult>((resolve, reject) => {
+        try {
+          partition.loadSnapshot(streamId).then((snapshot) => resolve(snapshot ?? undefined), reject);
+        } catch (error) {
+          reject(error);
         }
-
-        this.remotePartition
-          .loadSnapshot(streamId)
-          .then((remoteSnapshot) => {
-            log.info('loadSnapshot: Using remote snapshot');
-            if (remoteSnapshot) {
-              this.localPartition.storeSnapshot(remoteSnapshot.id, remoteSnapshot.snapshot, remoteSnapshot.version);
-              this.localPartition.truncateStreamFrom(remoteSnapshot.id, 0, true);
-              callback?.(null, remoteSnapshot);
-            }
-            resolve(remoteSnapshot);
-          })
-          .catch((error) => {
-            log.warn('Failed to load snapshot with stream id %s from remote partition', streamId);
-          });
       });
-    }).finally(() => {
-      const endTime = Date.now();
-      const queryTime = (endTime - startTime) / 1000;
-      if (this.loggingOptions.loggingEnabled && queryTime > this.loggingOptions.loadSnapshotMaxTime!) {
-        log.warn('Loading snapshot with id %s, took %s seconds. Allowed max time is %s seconds.', streamId, queryTime, this.loggingOptions.loadSnapshotMaxTime);
-      }
+
+    const snapshotPromise = new BluebirdPromise<SnapshotResult>((resolve, reject) => {
+      loadPartitionSnapshot(this.localPartition)
+        .then((localSnapshot) => {
+          const isSnapshotToOld = this.checkIsSnapshotToOld(localSnapshot);
+
+          if (localSnapshot && !isSnapshotToOld) {
+            log.info('loadSnapshot: Using local snapshot');
+            return localSnapshot;
+          }
+
+          return loadPartitionSnapshot(this.remotePartition)
+            .then(async (remoteSnapshot) => {
+              log.info('loadSnapshot: Using remote snapshot');
+
+              if (remoteSnapshot) {
+                await this.localPartition.storeSnapshot(remoteSnapshot.id, remoteSnapshot.snapshot, remoteSnapshot.version);
+                await this.localPartition.truncateStreamFrom(remoteSnapshot.id, 0, true);
+              }
+              return remoteSnapshot;
+            })
+            .catch((error) => {
+              log.warn('Failed to load snapshot with stream id %s from remote partition', streamId);
+              throw error;
+            });
+        })
+        .then(resolve, reject)
+        .finally(() => {
+          const endTime = Date.now();
+          const queryTime = (endTime - startTime) / 1000;
+          const isMaxTimeExceeded = this.loggingOptions.loadSnapshotMaxTime && queryTime > this.loggingOptions.loadSnapshotMaxTime;
+
+          if (this.loggingOptions.loggingEnabled && isMaxTimeExceeded) {
+            log.warn(
+              'Loading snapshot with id %s, took %s seconds. Allowed max time is %s seconds.',
+              streamId,
+              queryTime,
+              this.loggingOptions.loadSnapshotMaxTime
+            );
+          }
+        });
     });
+
+    if (callback) {
+      snapshotPromise.then(
+        (snapshot) => callback(null, snapshot),
+        (error) => callback(error instanceof Error ? error : new Error(String(error)))
+      );
+    }
+
+    return snapshotPromise;
   }
 
   queryStream(streamId: string, fromEventSequence?: number | queryStreamCallback, callback?: queryStreamCallback) {

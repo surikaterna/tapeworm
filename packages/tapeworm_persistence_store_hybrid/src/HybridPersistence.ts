@@ -2,6 +2,9 @@ import BluebirdPromise from 'bluebird';
 import HybridPartition from './HybridPartition';
 import type { ICommit, ISnapshot } from 'tapeworm';
 
+export type SnapshotResult = ISnapshot | undefined;
+export type loadSnapshotCallback = (err: Error | null, snapshot?: SnapshotResult) => void;
+
 export type truncateStreamFromCallback = (error: Error | null, result: Record<string, any>) => void;
 type TruncateStreamFrom = (
   streamId: string,
@@ -16,7 +19,7 @@ type QueryStream = (streamId: string, fromEventSequence?: number | queryStreamCa
 export type Partition = {
   open: () => BluebirdPromise<Partition>;
   storeSnapshot: (streamId: string, snapshot: ISnapshot['snapshot'], version: number) => BluebirdPromise<void>;
-  loadSnapshot: (streamId: string, callback?: (err: Error | null, snapshot: ISnapshot | undefined) => void) => BluebirdPromise<ISnapshot | undefined>;
+  loadSnapshot: (streamId: string, callback?: loadSnapshotCallback) => BluebirdPromise<SnapshotResult>;
   queryStream: QueryStream;
   append: (commit: ICommit) => BluebirdPromise<ICommit[]>;
   removeSnapshot: (streamId: string) => BluebirdPromise<void>;

@@ -1,5 +1,11 @@
 # tapeworm_persistence_store_hybrid
 
+## 1.1.2
+
+### Patch Changes
+
+-   Fix "loadSnapshot" handling of nullable snapshots and callback errors
+
 ## 1.1.1
 
 ### Patch Changes
