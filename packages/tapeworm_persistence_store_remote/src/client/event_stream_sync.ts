@@ -1,4 +1,4 @@
-import _ from "lodash";
+import { drop, find, findIndex, forEach } from "lodash";
 import {
   getLastAuthorizedCommitSequence,
   getLastCommitSequence,
@@ -54,7 +54,7 @@ class EventCommitsSynchronizer {
       this.processCommit.bind(this),
     ));
     q.pause();
-    _.forEach(this._commits, function (commit: CommitWithAuthorative) {
+    forEach(this._commits, function (commit: CommitWithAuthorative) {
       q.add(commit);
     });
     const localCommits = await this._partition._queryStream(this._streamId);
@@ -95,7 +95,7 @@ class EventCommitsSynchronizer {
   }
 
   async _processCommit(commit: CommitWithAuthorative): Promise<void> {
-    const matchingLocalCommit = _.find(this._localCommits, { commitSequence: commit.commitSequence });
+    const matchingLocalCommit = find(this._localCommits, { commitSequence: commit.commitSequence });
     //no such commit locally. just appen
     if (!matchingLocalCommit) {
       await this._applyNewCommit(commit);
@@ -137,11 +137,11 @@ class EventCommitsSynchronizer {
       //self.emit('conflict', self._streamId);
       LOG.debug("Merge conflict, truncing", self._streamId);
       await self._partition._truncateStreamFrom(self._streamId, commit.commitSequence);
-      const i = _.findIndex(self._commits, { id: commit.id });
+      const i = findIndex(self._commits, { id: commit.id });
       self._hasConflict = true;
       //do not process more commits as we are resetting the stream and appending all remaining commits here...
       self._q.clear();
-      const commitsToAdd = _.drop(self._commits, i);
+      const commitsToAdd = drop(self._commits, i);
       await self._partition.append(commitsToAdd);
     }
   }
