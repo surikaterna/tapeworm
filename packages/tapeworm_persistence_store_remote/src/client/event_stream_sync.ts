@@ -49,12 +49,11 @@ class EventCommitsSynchronizer {
   }
 
   async sync(): Promise<boolean> {
-    const self = this;
     const q = (this._q = new JobQueue<CommitWithAuthorative>(
       this.processCommit.bind(this),
     ));
     q.pause();
-    forEach(this._commits, function (commit: CommitWithAuthorative) {
+    forEach(this._commits, (commit: CommitWithAuthorative) => {
       q.add(commit);
     });
     const localCommits = await this._partition._queryStream(this._streamId);
@@ -63,14 +62,14 @@ class EventCommitsSynchronizer {
     this._seenSequence = this._lastLocalSeq;
     this._localCommits = localCommits;
 
-    return new Promise<boolean>(function (
+    return new Promise<boolean>((
       resolve: (value: boolean) => void,
       reject: (reason: Error) => void,
-    ) {
-      q.once("empty", function () {
-        resolve(self._hasConflict);
+    ) => {
+      q.once("empty", () => {
+        resolve(this._hasConflict);
       });
-      q.once("error", function (e: Error) {
+      q.once("error", (e: Error) => {
         LOG.debug("error", e);
         reject(e);
       });
@@ -128,21 +127,20 @@ class EventCommitsSynchronizer {
     commit: CommitWithAuthorative,
     localCommit: ICommit,
   ): Promise<void> {
-    const self = this;
     //similiar enough, just marking this commit was approved by server
     if (commitsMatch(commit, localCommit)) {
       await this._partition._applyCommitHeader(localCommit.id, { authorative: true });
     } else {
       //streams out of sync... :'(
-      //self.emit('conflict', self._streamId);
-      LOG.debug("Merge conflict, truncing", self._streamId);
-      await self._partition._truncateStreamFrom(self._streamId, commit.commitSequence);
-      const i = findIndex(self._commits, { id: commit.id });
-      self._hasConflict = true;
+      //this.emit('conflict', this._streamId);
+      LOG.debug("Merge conflict, truncing", this._streamId);
+      await this._partition._truncateStreamFrom(this._streamId, commit.commitSequence);
+      const i = findIndex(this._commits, { id: commit.id });
+      this._hasConflict = true;
       //do not process more commits as we are resetting the stream and appending all remaining commits here...
-      self._q.clear();
-      const commitsToAdd = drop(self._commits, i);
-      await self._partition.append(commitsToAdd);
+      this._q.clear();
+      const commitsToAdd = drop(this._commits, i);
+      await this._partition.append(commitsToAdd);
     }
   }
 }
