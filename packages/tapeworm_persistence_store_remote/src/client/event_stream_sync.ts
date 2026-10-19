@@ -1,5 +1,4 @@
 import _ from "lodash";
-import Promise from "bluebird";
 import {
   getLastAuthorizedCommitSequence,
   getLastCommitSequence,
@@ -49,7 +48,7 @@ class EventCommitsSynchronizer {
     this._hasConflict = false;
   }
 
-  sync(): Promise<boolean> {
+  async sync(): Promise<boolean> {
     var self = this;
     var q = (this._q = new JobQueue<CommitWithAuthorative>(
       this.processCommit.bind(this),
@@ -58,7 +57,13 @@ class EventCommitsSynchronizer {
     _.forEach(this._commits, function (commit: CommitWithAuthorative) {
       q.add(commit);
     });
-    return new Promise(function (
+    var localCommits = await this._partition._queryStream(this._streamId);
+    this._skipSeq = getLastAuthorizedCommitSequence(localCommits);
+    this._lastLocalSeq = getLastCommitSequence(localCommits);
+    this._seenSequence = this._lastLocalSeq;
+    this._localCommits = localCommits;
+
+    return new Promise<boolean>(function (
       resolve: (value: boolean) => void,
       reject: (reason: Error) => void,
     ) {
@@ -69,107 +74,75 @@ class EventCommitsSynchronizer {
         LOG.debug("error", e);
         reject(e);
       });
-      self._partition
-        ._queryStream(self._streamId)
-        .then(function (localCommits: ICommit[]) {
-          //return self._processCommitsLocal(commits, localCommits, streamId);
-          self._skipSeq = getLastAuthorizedCommitSequence(localCommits);
-          self._lastLocalSeq = getLastCommitSequence(localCommits);
-          self._seenSequence = self._lastLocalSeq;
-          self._localCommits = localCommits;
-          q.resume();
-        });
+      q.resume();
     });
   }
 
-  processCommit(
+  async processCommit(
     commit: CommitWithAuthorative,
     done: (err?: Error) => void,
-  ): void {
+  ): Promise<void> {
     //do we need to process this commit
-    if (commit.commitSequence > this._skipSeq) {
-      this._processCommit(commit, done);
-    } else {
-      done();
+    try {
+      if (commit.commitSequence > this._skipSeq) {
+        await this._processCommit(commit);
+      }
+    } catch (err) {
+      done(err as Error);
+      return;
     }
+    done();
   }
 
-  _processCommit(
-    commit: CommitWithAuthorative,
-    done: (err?: Error) => void,
-  ): boolean | undefined {
-    var matchingLocalCommit = _.find(this._localCommits, {
-      commitSequence: commit.commitSequence,
-    });
+  async _processCommit(commit: CommitWithAuthorative): Promise<void> {
+    var matchingLocalCommit = _.find(this._localCommits, { commitSequence: commit.commitSequence });
     //no such commit locally. just appen
     if (!matchingLocalCommit) {
-      this._applyNewCommit(commit, done);
+      await this._applyNewCommit(commit);
     } else {
       //check if matching commits
-      return this._applyMergeCommit(
-        commit,
-        matchingLocalCommit,
-        done,
-      ) as unknown as boolean;
+      await this._applyMergeCommit(commit, matchingLocalCommit);
     }
-    return true;
   }
 
-  _applyNewCommit(
-    commit: CommitWithAuthorative,
-    done: (err?: Error) => void,
-  ): void {
+  async _applyNewCommit(commit: CommitWithAuthorative): Promise<void> {
     var newSeq = this._seenSequence + 1;
     if (newSeq === commit.commitSequence) {
       this._seenSequence++;
       commit.authorative = true;
-      this._partition.append(commit).then(function () {
-        done();
-      });
+      await this._partition.append(commit);
     } else {
       this._hasConflict = false;
       LOG.debug(this._localCommits);
       LOG.debug(this._commits);
-      done(
-        new Error(
-          "Missing commits, gap in commit sequence local: " +
-            newSeq +
-            " server: " +
-            commit.commitSequence,
-        ),
+      throw new Error(
+        "Missing commits, gap in commit sequence local: " +
+          newSeq +
+          " server: " +
+          commit.commitSequence,
       );
     }
   }
 
-  _applyMergeCommit(
+  async _applyMergeCommit(
     commit: CommitWithAuthorative,
     localCommit: ICommit,
-    done: (err?: Error) => void,
-  ): void {
+  ): Promise<void> {
     var self = this;
     //similiar enough, just marking this commit was approved by server
     if (commitsMatch(commit, localCommit)) {
-      this._partition
-        ._applyCommitHeader(localCommit.id, { authorative: true })
-        .then(function () {
-          done();
-        });
+      await this._partition._applyCommitHeader(localCommit.id, { authorative: true });
     } else {
       //streams out of sync... :'(
       //self.emit('conflict', self._streamId);
       LOG.debug("Merge conflict, truncing", self._streamId);
-      self._partition
-        ._truncateStreamFrom(self._streamId, commit.commitSequence)
-        .then(function () {
-          var i = _.findIndex(self._commits, { id: commit.id });
-          self._hasConflict = true;
-          //do not process more commits as we are resetting the stream and appending all remaining commits here...
-          self._q.clear();
-          var commitsToAdd = _.drop(self._commits, i);
-          return self._partition.append(commitsToAdd).then(function () {
-            done();
-          });
-        });
+      await self._partition._truncateStreamFrom(self._streamId, commit.commitSequence);
+      var i = _.findIndex(self._commits, { id: commit.id });
+      self._hasConflict = true;
+      //do not process more commits as we are resetting the stream and appending all remaining commits here...
+      self._q.clear();
+      var commitsToAdd = _.drop(self._commits, i);
+      await self._partition.append(commitsToAdd);
     }
   }
 }
