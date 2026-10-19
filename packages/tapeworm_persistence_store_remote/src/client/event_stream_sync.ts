@@ -1,10 +1,9 @@
-import { drop, find, findIndex, forEach } from "lodash";
+import { drop, find, findIndex } from "lodash";
 import {
   getLastAuthorizedCommitSequence,
   getLastCommitSequence,
   commitsMatch,
 } from "./util";
-import JobQueue from "@surikat/job-queue";
 import { Logger } from "slf";
 import type { ICommit } from "tapeworm";
 
@@ -31,7 +30,6 @@ class EventCommitsSynchronizer {
   declare _commits: CommitWithAuthorative[];
   declare _streamId: string;
   declare _hasConflict: boolean;
-  declare _q: JobQueue<CommitWithAuthorative>;
   declare _skipSeq: number;
   declare _lastLocalSeq: number;
   declare _seenSequence: number;
@@ -49,48 +47,29 @@ class EventCommitsSynchronizer {
   }
 
   async sync(): Promise<boolean> {
-    const q = (this._q = new JobQueue<CommitWithAuthorative>(
-      this.processCommit.bind(this),
-    ));
-    q.pause();
-    forEach(this._commits, (commit: CommitWithAuthorative) => {
-      q.add(commit);
-    });
     const localCommits = await this._partition._queryStream(this._streamId);
     this._skipSeq = getLastAuthorizedCommitSequence(localCommits);
     this._lastLocalSeq = getLastCommitSequence(localCommits);
     this._seenSequence = this._lastLocalSeq;
     this._localCommits = localCommits;
 
-    return new Promise<boolean>((
-      resolve: (value: boolean) => void,
-      reject: (reason: Error) => void,
-    ) => {
-      q.once("empty", () => {
-        resolve(this._hasConflict);
-      });
-      q.once("error", (e: Error) => {
-        LOG.debug("error", e);
-        reject(e);
-      });
-      q.resume();
-    });
+    try {
+      for (const commit of this._commits) {
+        await this.processCommit(commit);
+        if (this._hasConflict) break;
+      }
+    } catch (error) {
+      LOG.debug("error", error);
+      throw error;
+    }
+    return this._hasConflict;
   }
 
-  async processCommit(
-    commit: CommitWithAuthorative,
-    done: (err?: Error) => void,
-  ): Promise<void> {
+  async processCommit(commit: CommitWithAuthorative): Promise<void> {
     //do we need to process this commit
-    try {
-      if (commit.commitSequence > this._skipSeq) {
-        await this._processCommit(commit);
-      }
-    } catch (err) {
-      done(err as Error);
-      return;
+    if (commit.commitSequence > this._skipSeq) {
+      await this._processCommit(commit);
     }
-    done();
   }
 
   async _processCommit(commit: CommitWithAuthorative): Promise<void> {
@@ -137,8 +116,6 @@ class EventCommitsSynchronizer {
       await this._partition._truncateStreamFrom(this._streamId, commit.commitSequence);
       const i = findIndex(this._commits, { id: commit.id });
       this._hasConflict = true;
-      //do not process more commits as we are resetting the stream and appending all remaining commits here...
-      this._q.clear();
       const commitsToAdd = drop(this._commits, i);
       await this._partition.append(commitsToAdd);
     }
