@@ -8,7 +8,7 @@ import JobQueue from "@surikat/job-queue";
 import { Logger } from "slf";
 import type { ICommit } from "tapeworm";
 
-var LOG = Logger.getLogger("tapeworm:event-stream-sync");
+const LOG = Logger.getLogger("tapeworm:event-stream-sync");
 
 type CommitWithAuthorative = ICommit & { authorative?: boolean };
 
@@ -49,15 +49,15 @@ class EventCommitsSynchronizer {
   }
 
   async sync(): Promise<boolean> {
-    var self = this;
-    var q = (this._q = new JobQueue<CommitWithAuthorative>(
+    const self = this;
+    const q = (this._q = new JobQueue<CommitWithAuthorative>(
       this.processCommit.bind(this),
     ));
     q.pause();
     _.forEach(this._commits, function (commit: CommitWithAuthorative) {
       q.add(commit);
     });
-    var localCommits = await this._partition._queryStream(this._streamId);
+    const localCommits = await this._partition._queryStream(this._streamId);
     this._skipSeq = getLastAuthorizedCommitSequence(localCommits);
     this._lastLocalSeq = getLastCommitSequence(localCommits);
     this._seenSequence = this._lastLocalSeq;
@@ -95,7 +95,7 @@ class EventCommitsSynchronizer {
   }
 
   async _processCommit(commit: CommitWithAuthorative): Promise<void> {
-    var matchingLocalCommit = _.find(this._localCommits, { commitSequence: commit.commitSequence });
+    const matchingLocalCommit = _.find(this._localCommits, { commitSequence: commit.commitSequence });
     //no such commit locally. just appen
     if (!matchingLocalCommit) {
       await this._applyNewCommit(commit);
@@ -106,7 +106,7 @@ class EventCommitsSynchronizer {
   }
 
   async _applyNewCommit(commit: CommitWithAuthorative): Promise<void> {
-    var newSeq = this._seenSequence + 1;
+    const newSeq = this._seenSequence + 1;
     if (newSeq === commit.commitSequence) {
       this._seenSequence++;
       commit.authorative = true;
@@ -128,7 +128,7 @@ class EventCommitsSynchronizer {
     commit: CommitWithAuthorative,
     localCommit: ICommit,
   ): Promise<void> {
-    var self = this;
+    const self = this;
     //similiar enough, just marking this commit was approved by server
     if (commitsMatch(commit, localCommit)) {
       await this._partition._applyCommitHeader(localCommit.id, { authorative: true });
@@ -137,11 +137,11 @@ class EventCommitsSynchronizer {
       //self.emit('conflict', self._streamId);
       LOG.debug("Merge conflict, truncing", self._streamId);
       await self._partition._truncateStreamFrom(self._streamId, commit.commitSequence);
-      var i = _.findIndex(self._commits, { id: commit.id });
+      const i = _.findIndex(self._commits, { id: commit.id });
       self._hasConflict = true;
       //do not process more commits as we are resetting the stream and appending all remaining commits here...
       self._q.clear();
-      var commitsToAdd = _.drop(self._commits, i);
+      const commitsToAdd = _.drop(self._commits, i);
       await self._partition.append(commitsToAdd);
     }
   }
@@ -187,17 +187,17 @@ class EventStreamSynchronizer implements IEventStreamSynchronizer {
     localCommits: ICommit[],
     _streamId: string,
   ): void {
-    var skipSeq = getLastAuthorizedCommitSequence(localCommits);
-    var lastLocalSeq = getLastCommitSequence(localCommits);
-    var seenSequence = lastLocalSeq;
+    const skipSeq = getLastAuthorizedCommitSequence(localCommits);
+    const lastLocalSeq = getLastCommitSequence(localCommits);
+    const seenSequence = lastLocalSeq;
     void seenSequence;
-    for (var i = 0; i < commits.length; i++) {
-      var commit = commits[i];
+    for (let i = 0; i < commits.length; i++) {
+      const commit = commits[i];
 
       //do we need to process this commit
       if (commit.commitSequence > skipSeq) {
         // Original code called this._processCommit with different arity — dead code path
-        var result = (
+        const result = (
           this as unknown as Record<string, (...args: unknown[]) => unknown>
         )._processCommit(
           commit,
