@@ -10,10 +10,6 @@ export default defineConfig({
   resolve: {
     alias: {
       tapeworm: path.resolve(__dirname, "../tapeworm/index.ts"),
-      "@surikat/job-queue": path.resolve(
-        __dirname,
-        "test/__mocks__/job-queue.ts",
-      ),
     },
   },
 });
