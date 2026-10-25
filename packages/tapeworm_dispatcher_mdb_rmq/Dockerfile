@@ -3,8 +3,8 @@
 #   EXCHANGE, RESUME_COLLECTION, WATCH_MODE, TENANT
 
 # --- build stage ---
-FROM node:26.9.0-alpine AS build
-RUN npm install --global npm@11.12.1 && test "$(node --version)" = v26.9.0 && test "$(npm --version)" = 11.12.1
+FROM node:26.12.1-alpine AS build
+RUN npm install --global npm@11.12.1 && test "$(node --version)" = v26.12.1 && test "$(npm --version)" = 11.12.1
 WORKDIR /app
 COPY package.json package-lock.json turbo.json tsconfig.base.json ./
 COPY packages/tapeworm/package.json packages/tapeworm/
@@ -15,13 +15,13 @@ COPY packages/tapeworm_dispatcher_mdb_rmq/ packages/tapeworm_dispatcher_mdb_rmq/
 RUN npx turbo run build --filter=tapeworm_dispatcher_mdb_rmq
 
 # --- production stage ---
-FROM node:26.9.0-alpine
+FROM node:26.12.1-alpine
 ARG REVISION
 ARG VERSION
 ARG CORE_VERSION
 LABEL org.opencontainers.image.revision=$REVISION
 LABEL org.opencontainers.image.version=$VERSION org.tapeworm.core.version=$CORE_VERSION
-RUN npm install --global npm@11.12.1 && test "$(node --version)" = v26.9.0 && test "$(npm --version)" = 11.12.1
+RUN npm install --global npm@11.12.1 && test "$(node --version)" = v26.12.1 && test "$(npm --version)" = 11.12.1
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/tapeworm/package.json packages/tapeworm/

@@ -34,7 +34,7 @@ trap cleanup EXIT
 "$DOCKER_BIN" volume create --label "$PROJECT" --label "org.tapeworm.ci.run=$OTHER" "$OTHER"
 "$DOCKER_BIN" run -d --name "$OTHER" --network "$OTHER" --label "$PROJECT" \
     --label "org.tapeworm.ci.run=$OTHER" --mount "type=volume,src=$OTHER,dst=/sentinel" \
-    node:26.9.0-bookworm sleep 300
+    node:26.12.1-bookworm sleep 300
 
 cat > "$SCRATCH/docker" <<'WRAPPER'
 #!/usr/bin/env bash

@@ -178,7 +178,7 @@ test('non-root container reads only the exposed identity on a read-only evidence
       writeFileSync(join(art, 'qualification.log'), 'private', { mode: 0o600 });
       const probe = () => spawnSync('docker', ['run', '--rm', '--user', '10001:10001',
         '--mount', `type=bind,src=${art},dst=/evidence,readonly`, '--entrypoint', 'node',
-        'node:26.9.0-alpine', '-e', 'const fs=require("node:fs");if(process.getuid()===0)process.exit(2);fs.readFileSync("/evidence/identity.json");fs.readFileSync("/evidence/qualification.log");'],
+        'node:26.12.1-alpine', '-e', 'const fs=require("node:fs");if(process.getuid()===0)process.exit(2);fs.readFileSync("/evidence/identity.json");fs.readFileSync("/evidence/qualification.log");'],
       { encoding: 'utf8', timeout: 30000 });
       const before = probe();
       assert.notEqual(before.status, 0, 'private identity must not be readable');
@@ -190,7 +190,7 @@ test('non-root container reads only the exposed identity on a read-only evidence
       assert.match(after.stderr, /EACCES.*qualification\.log/s);
       const identity = spawnSync('docker', ['run', '--rm', '--user', '10001:10001',
         '--mount', `type=bind,src=${art},dst=/evidence,readonly`, '--entrypoint', 'node',
-        'node:26.9.0-alpine', '-e', 'const fs=require("node:fs");if(process.getuid()===0)process.exit(2);if(JSON.parse(fs.readFileSync("/evidence/identity.json","utf8")).run!=="fixture")process.exit(3);'],
+        'node:26.12.1-alpine', '-e', 'const fs=require("node:fs");if(process.getuid()===0)process.exit(2);if(JSON.parse(fs.readFileSync("/evidence/identity.json","utf8")).run!=="fixture")process.exit(3);'],
       { encoding: 'utf8', timeout: 30000 });
       assert.equal(identity.status, 0, identity.stderr);
     } finally { rmSync(scratch, { recursive: true, force: true }); }

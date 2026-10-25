@@ -1,5 +1,14 @@
 # Reproducible qualification (redemeine-cwvo)
 
+## Runtime security (CVE-2026-111497)
+
+CI and production stages pin Node26.12.1, with npm11.12.1 unchanged. Consumer Node runtimes require 22.23.4,24.22.1 or26.12.1 (or newer patched releases on those supported lines).
+
+See the [Node October 2026 security release](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases). Rebuild and redeploy affected images and artifacts; existing deployments and previously compiled executables are not updated by this source change.
+
+Shared patched-runtime smoke safely round-tripped HTTP `Content-Encoding: br` through native fetch on Node22.23.4,24.22.1,26.12.1 and Bun1.4.4. This is runtime evidence, not an application-suite or exploit test.
+
+
 From a trusted checkout, run **`./ci/qualify.sh`**. Jenkins runs this exact command;
 there is no separate CI-only sequence. No publication or credentials are needed.
 The host needs Linux, Bash, Git, GNU coreutils, and Docker CLI plus access to a
@@ -42,7 +51,7 @@ are not relaxed; the run directory is not listable by other users.
 
 ## Toolchain and gates
 
-`.nvmrc` pins Node **26.9.0**, and the root manifest pins npm **11.12.1**. The
+`.nvmrc` pins Node **26.12.1**, and the root manifest pins npm **11.12.1**. The
 Debian `ci/Dockerfile` installs npm inside the runner and checks `libcurl4` for
 mongodb-memory-server. No host npm installation is changed. Production remains
 Alpine, with both stages pinned to the same Node/npm versions. Base tags are

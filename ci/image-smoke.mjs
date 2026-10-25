@@ -59,7 +59,7 @@ async function services() {
 }
 
 function identity() {
-  assert.equal(process.version, 'v26.9.0');
+  assert.equal(process.version, 'v26.12.1');
   assert.notEqual(process.getuid?.(), 0);
   assert.equal(typeof Dispatcher, 'function');
   assert.ok(Object.keys(core).length > 0);

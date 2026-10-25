@@ -81,17 +81,17 @@ preflight() {
     command -v -- "$DOCKER_BIN"; command -v git; command -v timeout
     bash -n ci/qualify.sh ci/diagnostics.sh ci/services.sh ci/release.sh ci/cleanup.test.sh
     require_linux_docker
-    [[ $(< .nvmrc) == 26.9.0 ]]
+    [[ $(< .nvmrc) == 26.12.1 ]]
     [[ -w $ROOT ]]
     printf 'Run %s; source %s; workspace %s\n' "$RUN_ID" "$(git rev-parse HEAD)" "$ROOT"
     "$DOCKER_BIN" version
     local image
-    for image in node:26.9.0-alpine mongo:8.3.9 rabbitmq:4.3.6; do "$DOCKER_BIN" pull "$image"; done
+    for image in node:26.12.1-alpine mongo:8.3.9 rabbitmq:4.3.6; do "$DOCKER_BIN" pull "$image"; done
     "$DOCKER_BIN" build --pull -f ci/Dockerfile -t "tapeworm-ci:$RUN_ID" .
     RUNNER=$("$DOCKER_BIN" image inspect --format '{{.Id}}' "tapeworm-ci:$RUN_ID")
     export RUNNER
     "$DOCKER_BIN" image inspect --format '{{.Id}} {{json .RepoDigests}}' \
-        node:26.9.0-bookworm node:26.9.0-alpine mongo:8.3.9 rabbitmq:4.3.6
+        node:26.12.1-bookworm node:26.12.1-alpine mongo:8.3.9 rabbitmq:4.3.6
 }
 
 require_linux_docker() {
@@ -144,7 +144,7 @@ runner() {
 
 gates() {
     runner bash -euc '
-        test "$(node --version)" = v26.9.0
+        test "$(node --version)" = v26.12.1
         test "$(npm --version)" = 11.12.1
         node --input-type=module -e '\''import p from "./package.json" with {type:"json"}; if(p.packageManager!=="npm@11.12.1") process.exit(1)'\''
         printf "\nGATE npm ci\n"; npm ci
